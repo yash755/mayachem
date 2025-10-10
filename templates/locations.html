@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Locations{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <h3>Locations</h3>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12 col-md-6">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Manage locations</h5>
+
+        <div id="locations-table-container" class="mb-3">
+          <table class="table table-sm" id="locations-table">
+            <thead>
+              <tr><th>Name</th><th style="width:160px">Actions</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <form id="add-location-form" class="d-flex gap-2">
+          <input id="loc-name" name="name" class="form-control" placeholder="New location" required>
+          <button class="btn btn-primary">Add</button>
+        </form>
+
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Notes</h5>
+        <p class="small text-muted">Deleting a location will also remove its leads (cascade). If you want a different behavior, tell me and I'll change it to set leads' location to NULL instead.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='/locations.js') }}"></script>
+{% endblock %}

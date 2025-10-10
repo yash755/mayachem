@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit Bottle Type' if bt else 'New Bottle Type' }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+
+      <!-- Card Wrapper for mobile -->
+      <div class="card shadow-sm mt-3">
+        <div class="card-header bg-light">
+          <h4 class="mb-0">{{ 'Edit Bottle Type' if bt else 'New Bottle Type' }}</h4>
+        </div>
+
+        <div class="card-body">
+          <form method="post" class="row g-3">
+            <!-- Label -->
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-semibold">Label</label>
+              <input type="text" name="label" class="form-control"
+                     value="{{ bt.label if bt else '' }}" placeholder="e.g. 1 Ltr" required>
+            </div>
+
+            <!-- Quantity (L) -->
+            <div class="col-6 col-md-4">
+              <label class="form-label fw-semibold">Quantity (L)</label>
+              <input type="number" step="0.01" min="0" name="quantity_ltr"
+                     class="form-control" value="{{ bt.quantity_ltr if bt else '' }}" required>
+            </div>
+
+            <!-- Bottles per Batch -->
+            <div class="col-6 col-md-4">
+              <label class="form-label fw-semibold">Bottles / Batch</label>
+              <input type="number" step="1" min="1" name="bottles_in_batch"
+                     class="form-control" value="{{ bt.bottles_in_batch if bt else 1 }}" required>
+            </div>
+
+            <!-- Can Price -->
+            <div class="col-6 col-md-4">
+              <label class="form-label fw-semibold">Can Price (₹)</label>
+              <input type="number" step="0.01" min="0" name="can_price"
+                     class="form-control" value="{{ bt.can_price if bt else 0 }}" required>
+            </div>
+
+            <!-- Box Cost -->
+            <div class="col-6 col-md-4">
+              <label class="form-label fw-semibold">Box Cost (₹)</label>
+              <input type="number" step="0.01" min="0" name="box_cost"
+                     class="form-control" value="{{ bt.box_cost if bt else 0 }}" required>
+            </div>
+
+            <!-- Price per Kg -->
+            <div class="col-12 col-md-4">
+              <label for="price_per_kg" class="form-label fw-semibold">Price per Kg (₹)</label>
+              <input type="number" step="0.01" class="form-control" name="price_per_kg"
+                     value="{{ bt.price_per_kg if bt else '' }}">
+            </div>
+
+            <!-- Selling Price / Batch -->
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-semibold">Selling Price / Batch (₹)</label>
+              <input type="number" step="0.01" min="0" name="selling_price_per_batch"
+                     class="form-control" value="{{ bt.selling_price_per_batch if bt else 0 }}" required>
+            </div>
+
+            <!-- Buttons -->
+            <div class="col-12 mt-3 text-center text-md-start">
+              <button class="btn btn-primary me-2">Save</button>
+              <a class="btn btn-secondary" href="{{ url_for('bottles_list') }}">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Optional: Mobile-specific tweaks -->
+<style>
+  @media (max-width: 767.98px) {
+    .card {
+      border-radius: 0.75rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .card-body {
+      padding: 1.25rem 1rem;
+    }
+    .form-label {
+      font-size: 0.9rem;
+      color: #444;
+    }
+    input.form-control {
+      font-size: 0.95rem;
+    }
+  }
+</style>
+{% endblock %}

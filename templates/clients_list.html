@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Clients</h3>
+  <a class="btn btn-primary" href="{{ url_for('clients_form') }}">+ New Client</a>
+</div>
+
+<form class="row g-2 mb-3">
+  <div class="col-auto">
+    <input type="text" class="form-control" name="q" placeholder="Search client..." value="{{ q }}">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-outline-secondary">Search</button>
+  </div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-hover align-middle">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Address</th>
+      <th>GST</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in rows %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td style="max-width: 400px; white-space:normal;">{{ c.address }}</td>
+      <td>{{ c.gst }}</td>
+      <td class="text-nowrap">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('clients_form', client_id=c.id) }}">Edit</a>
+        <form class="d-inline" method="post" action="{{ url_for('clients_delete', client_id=c.id) }}" onsubmit="return confirm('Delete this client?');">
+          <button class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="text-center">No clients found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

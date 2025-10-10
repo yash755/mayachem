@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Reports</h3>
+<div class="table-responsive">
+<table class="table table-bordered table-sm align-middle">
+<thead class="table-light">
+<tr>
+<th>Client</th>
+<th class="text-end">Qty (kg)</th>
+<th class="text-end">SP Total (&#8377;)</th>
+<th class="text-end">CP (&#8377;)</th>
+<th class="text-end">P/L (&#8377;)</th>
+</tr>
+</thead>
+<tbody>
+{% for r in rows %}
+<tr>
+<td>{{ r.client_name }}</td>
+<td class="text-end">{{ '%.2f'|format(r.qty_kg) }}</td>
+<td class="text-end">&#8377; {{ '%.2f'|format(r.sp) }}</td>
+<td class="text-end">&#8377; {{ '%.2f'|format(r.cp) }}</td>
+<td class="text-end {% if r.pl >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(r.pl) }}</td>
+</tr>
+{% endfor %}
+</tbody>
+<tfoot>
+<tr class="fw-bold">
+<td>Total</td>
+<td class="text-end">{{ '%.2f'|format(totals.qty_kg) }}</td>
+<td class="text-end">&#8377; {{ '%.2f'|format(totals.sp) }}</td>
+<td class="text-end">&#8377; {{ '%.2f'|format(totals.cp) }}</td>
+<td class="text-end {% if totals.pl >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(totals.pl) }}</td>
+</tr>
+</tfoot>
+</table>
+</div>
+{% endblock %}

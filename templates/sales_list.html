@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block title %}Sales{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Sales</h3>
+  <a class="btn btn-primary" href="{{ url_for('sales_form') }}">+ Add</a>
+</div>
+
+<form class="row g-2 mb-3 align-items-center">
+  <div class="col-12 col-md-6">
+    <input type="text" class="form-control" name="q" placeholder="Search client..." value="{{ q }}">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-outline-secondary me-2">Search</button>
+    <a class="btn btn-outline-success" href="{{ url_for('export_csv') }}">Export CSV</a>
+  </div>
+</form>
+
+<!-- TABLE VIEW for md+ -->
+<div class="table-responsive d-none d-md-block">
+  <table class="table table-hover align-middle">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Client</th>
+        <th class="text-end">Qty (kg)</th>
+        <th class="text-end">SP Total</th>
+        <th class="text-end">CP</th>
+        <th class="text-end">P/L</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if rows %}
+        {% for s in rows %}
+        <tr>
+          <td>{{ s.date }}</td>
+          <td>{{ s.client_name }}</td>
+          <td class="text-end">{{ '%.2f'|format(s.total_qty) }}</td>
+          <td class="text-end">&#8377; {{ '%.2f'|format(s.total_sp()) }}</td>
+          <td class="text-end">&#8377; {{ '%.2f'|format(s.total_cp()) }}</td>
+          <td class="text-end {% if s.pl() >= 0 %}text-success{% else %}text-danger{% endif %}">
+            &#8377; {{ '%.2f'|format(s.pl()) }}
+          </td>
+          <td class="text-nowrap text-end">
+            <a class="btn btn-sm btn-outline-primary me-1" href="{{ url_for('sales_form', sale_id=s.id) }}">Edit</a>
+            <form class="d-inline" method="post" action="{{ url_for('sales_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sale?');">
+              <button class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="7" class="text-center text-muted">No sales found.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<!-- CARD VIEW for mobile -->
+<div class="d-block d-md-none">
+  {% if rows %}
+    {% for s in rows %}
+      <article class="sale-card card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="mb-1">{{ s.client_name }}</h6>
+              <small class="text-muted">{{ s.date }}</small>
+            </div>
+            <div class="text-end">
+              <span class="badge bg-info text-dark">Qty {{ '%.2f'|format(s.total_qty) }} kg</span>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+              <div class="small"><strong>SP:</strong> &#8377; {{ '%.2f'|format(s.total_sp()) }}</div>
+              <div class="small"><strong>CP:</strong> &#8377; {{ '%.2f'|format(s.total_cp()) }}</div>
+            </div>
+            <div class="text-end">
+              <div class="fw-semibold {% if s.pl() >= 0 %}text-success{% else %}text-danger{% endif %}">
+                &#8377; {{ '%.2f'|format(s.pl()) }}
+              </div>
+              <div class="small text-muted">P / L</div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{{ url_for('sales_form', sale_id=s.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+            <form method="post" action="{{ url_for('sales_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sale?');">
+              <button class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </div>
+        </div>
+      </article>
+    {% endfor %}
+  {% else %}
+    <p class="text-center text-muted">No sales found.</p>
+  {% endif %}
+</div>
+
+<!-- Optional small-screen styling -->
+<style>
+  @media (max-width: 767.98px) {
+    .sale-card {
+      border-radius: .75rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+    .sale-card h6 { margin-bottom: 0.2rem; font-weight: 600; }
+    .sale-card .small { line-height: 1.2; }
+    .sale-card .badge { font-size: .8rem; padding: .35rem .5rem; }
+  }
+</style>
+{% endblock %}

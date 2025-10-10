@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>{{ 'Edit Client' if client else 'New Client' }}</h3>
+
+<form method="post" class="row g-3">
+  <div class="col-md-6">
+    <label class="form-label">Name</label>
+    <input type="text" name="name" class="form-control" value="{{ client.name if client else '' }}" required>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label">GST (optional)</label>
+    <input type="text" name="gst" class="form-control" value="{{ client.gst if client else '' }}">
+    <div class="form-text">Enter GSTIN without spaces (e.g. 07ABCDE1234F2Z5)</div>
+  </div>
+
+  <div class="col-12">
+    <label class="form-label">Address (optional)</label>
+    <textarea name="address" class="form-control" rows="3">{{ client.address if client else '' }}</textarea>
+  </div>
+
+  <div class="col-12">
+    <button class="btn btn-primary">Save</button>
+    <a class="btn btn-secondary" href="{{ url_for('clients_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

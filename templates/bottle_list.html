@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}Bottle Types{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Bottle Types</h3>
+  <a class="btn btn-primary" href="{{ url_for('bottles_form') }}">+ New Bottle Type</a>
+</div>
+
+<form class="row g-2 mb-3">
+  <div class="col-auto flex-grow-1">
+    <input type="text" class="form-control" name="q" placeholder="Search..." value="{{ q }}">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-outline-secondary">Search</button>
+  </div>
+</form>
+
+<!-- ========== DESKTOP / TABLET TABLE VIEW ========== -->
+<div class="table-responsive d-none d-md-block">
+  <table class="table table-sm align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Label</th>
+        <th class="text-end">Qty (L)</th>
+        <th class="text-end">Bottles / Batch</th>
+        <th class="text-end">Can Price (₹)</th>
+        <th class="text-end">Box Cost (₹)</th>
+        <th class="text-end">Price / Kg (₹)</th>
+        <th class="text-end">CP / Batch (₹)</th>
+        <th class="text-end">SP / Batch (₹)</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in rows %}
+      <tr>
+        <td>{{ b.label }}</td>
+        <td class="text-end">{{ '%.2f'|format(b.quantity_ltr) }}</td>
+        <td class="text-end">{{ b.bottles_in_batch }}</td>
+        <td class="text-end">{{ '%.2f'|format(b.can_price) }}</td>
+        <td class="text-end">{{ '%.2f'|format(b.box_cost) }}</td>
+        <td class="text-end">{{ '%.2f'|format(b.price_per_kg) }}</td>
+        <td class="text-end">{{ '%.2f'|format(b.cp_per_batch()) }}</td>
+        <td class="text-end">{{ '%.2f'|format(b.sp_per_batch()) }}</td>
+        <td class="text-nowrap text-end">
+          <a class="btn btn-sm btn-outline-primary me-1" href="{{ url_for('bottles_form', bt_id=b.id) }}">Edit</a>
+          <form class="d-inline" method="post" action="{{ url_for('bottles_delete', bt_id=b.id) }}" onsubmit="return confirm('Delete this bottle type?');">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-center">No bottle types found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ========== MOBILE CARD VIEW ========== -->
+<div class="d-block d-md-none">
+  {% if rows %}
+    {% for b in rows %}
+      <div class="bottle-card card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <h5 class="mb-0">{{ b.label }}</h5>
+            <span class="badge bg-primary">{{ '%.2f'|format(b.quantity_ltr) }} L</span>
+          </div>
+
+          <div class="small text-muted mb-2">
+            <div><strong>Bottles / Batch:</strong> {{ b.bottles_in_batch }}</div>
+            <div><strong>Can Price:</strong> ₹{{ '%.2f'|format(b.can_price) }}</div>
+            <div><strong>Box Cost:</strong> ₹{{ '%.2f'|format(b.box_cost) }}</div>
+            <div><strong>Price / Kg:</strong> ₹{{ '%.2f'|format(b.price_per_kg) }}</div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <span class="text-success fw-semibold">SP ₹{{ '%.2f'|format(b.sp_per_batch()) }}</span>
+              <small class="text-muted ms-1">(CP ₹{{ '%.2f'|format(b.cp_per_batch()) }})</small>
+            </div>
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('bottles_form', bt_id=b.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+              <form method="post" action="{{ url_for('bottles_delete', bt_id=b.id) }}"
+                    onsubmit="return confirm('Delete this bottle type?');">
+                <button class="btn btn-sm btn-outline-danger">Del</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="text-center text-muted">No bottle types found.</p>
+  {% endif %}
+</div>
+
+<!-- ========== MOBILE CARD STYLING ========== -->
+<style>
+  @media (max-width: 767.98px) {
+    .bottle-card {
+      border-radius: 0.75rem;
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+    .bottle-card .card-body {
+      padding: 1rem 1.2rem;
+    }
+    .bottle-card h5 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .bottle-card .small div {
+      line-height: 1.3;
+    }
+    .bottle-card .badge {
+      font-size: 0.8rem;
+      padding: 0.4em 0.6em;
+    }
+  }
+</style>
+{% endblock %}

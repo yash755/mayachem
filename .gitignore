@@ -1,0 +1,75 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Flask instance folder
+instance/
+*.db
+
+# Environment variables
+.env
+*.env
+.env.*
+
+# Configuration files containing secrets
+config.py
+settings.py
+
+# PyInstaller
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# IDE/editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# macOS and Linux junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Nginx or deployment-specific logs/configs
+logs/
+*.pid
+
+# Compiled frontend assets (if applicable)
+node_modules/
+dist/
+build/
+
+
+# Gunicorn socket/pid/log files
+gunicorn.sock
+gunicorn.pid
+gunicorn.log
