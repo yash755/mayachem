@@ -364,8 +364,9 @@ def register_routes(app: Flask) -> None:
         total_qty = float(totals["total_qty"] or 0)
         total_sp = float(totals["total_sp"] or 0)
         total_cp = float(totals["total_cp"] or 0)
-        total_pl = round(total_sp - total_cp, 2)
         total_freight = float(totals["total_freight"] or 0)
+        total_pl = round(total_sp - (total_cp + total_freight), 2)
+
 
         # --- Monthly (last 6) using same per-sale method, aggregated by month ---
         monthly = db.session.execute(
@@ -402,7 +403,11 @@ def register_routes(app: Flask) -> None:
                 "sp": float(m["sp"] or 0),
                 "cp": float(m["cp"] or 0),
                 "freight": float(m["freight"] or 0),
-                "pl": round((float(m["sp"] or 0) - float(m["cp"] or 0)), 2),
+                "pl": round(
+                    float(m["sp"] or 0)
+                    - (float(m["cp"] or 0) + float(m["freight"] or 0)),
+                    2,
+                ),
             }
             for m in monthly
         ]
@@ -434,13 +439,17 @@ def register_routes(app: Flask) -> None:
             {"ym": current_ym},
         ).mappings().first()
 
+        current_sp = float(current["sp"] or 0)
+        current_cp = float(current["cp"] or 0)
+        current_freight = float(current["freight"] or 0)
+
         current_data = {
             "ym": current_ym,
             "qty": float(current["qty_kg"] or 0),
-            "sp": float(current["sp"] or 0),
-            "cp": float(current["cp"] or 0),
-            "freight": float(current["freight"] or 0),
-            "pl": round((float(current["sp"] or 0) - float(current["cp"] or 0)), 2),
+            "sp": current_sp,
+            "cp": current_cp,
+            "freight": current_freight,
+            "pl": round(current_sp - (current_cp + current_freight), 2),
         }
 
         return render_template(
