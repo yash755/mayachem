@@ -21,6 +21,12 @@
     </div></div>
   </div>
   <div class="col-md-3">
+  <div class="card"><div class="card-body">
+    <div class="fw-semibold">Total Freight</div>
+    <div class="fs-4">&#8377; {{ '%.2f'|format(total_freight) }}</div>
+  </div></div>
+</div>
+  <div class="col-md-3">
     <div class="card"><div class="card-body">
       <div class="fw-semibold">Total P/L</div>
       <div class="fs-4 {% if total_pl >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(total_pl) }}</div>
@@ -50,6 +56,12 @@
     </div></div>
   </div>
   <div class="col-md-3">
+  <div class="card"><div class="card-body">
+    <div class="fw-semibold">Total Freight</div>
+    <div class="fs-4">&#8377; {{ '%.2f'|format(current_data.freight) }}</div>
+  </div></div>
+</div>
+  <div class="col-md-3">
     <div class="card"><div class="card-body">
       <div class="fw-semibold">Total P/L</div>
       <div class="fs-4 {% if current_data.pl >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(current_data.pl) }}</div>
@@ -65,9 +77,10 @@
       <th>Date</th>
       <th>Client</th>
       <!-- <th class="text-end">Qty (kg)</th>
-      <th class="text-end">Freight</th>
+      
       <th class="text-end">SP Total</th>
       <th class="text-end">CP</th> -->
+      <th class="text-end">Freight</th>
       <th class="text-end">P/L</th>
       <th></th>
     </tr>
@@ -78,9 +91,10 @@
       <td>{{ s.date }}</td>
       <td>{{ s.client_name }}</td>
       <!-- <td class="text-end">{{ '%.2f'|format(s.total_qty) }}</td>
-      <td class="text-end">{{ '%.2f'|format(s.freight or 0) }}</td>
+      
       <td class="text-end">&#8377; {{ '%.2f'|format(s.total_sp()) }}</td>
       <td class="text-end">&#8377; {{ '%.2f'|format(s.total_cp()) }}</td> -->
+      <td class="text-end">{{ '%.2f'|format(s.freight or 0) }}</td>
       <td class="text-end {% if s.pl() >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(s.pl()) }}</td>
       <td class="text-nowrap">
         <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sales_form', sale_id=s.id) }}">Edit</a>
@@ -101,6 +115,7 @@
     <tr>
       <th>Month</th>
       <th class="text-end">Qty (kg)</th>
+      <th class="text-end">Freight</th>
       <th class="text-end">SP Total</th>
       <th class="text-end">CP Total</th>
       <th class="text-end">P/L</th>
@@ -111,6 +126,7 @@
     <tr>
       <td>{{ m.ym }}</td>
       <td class="text-end">{{ '%.2f'|format(m.qty_kg or 0) }}</td>
+      <td class="text-end">{{ m.freight | round(2) }}</td>
       <td class="text-end">&#8377; {{ '%.2f'|format(m.sp or 0) }}</td>
       <td class="text-end">&#8377; {{ '%.2f'|format(m.cp or 0) }}</td>
       <td class="text-end {% if m.pl >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(m.pl) }}</td>

@@ -29,6 +29,7 @@ db = SQLAlchemy()
 KG_PER_TON = 1000.0
 
 
+
 def create_app(test_config: Optional[dict] = None) -> Flask:
     app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -206,6 +207,32 @@ class Lead(db.Model):
 # -----------------------------------------------------------------------------
 # Small helpers
 # -----------------------------------------------------------------------------
+
+def sale_item_actual_kg(item: SaleItem) -> float:
+    """
+    Returns actual KG for a sale item.
+    - Bill items: quantity_kg is already KG
+    - Bottle (cash) items: quantity_kg = batches
+    """
+    if not item:
+        return 0.0
+
+    # Bottle sale
+    if item.bottle_type_id:
+        bt = BottleType.query.get(item.bottle_type_id)
+        if not bt:
+            return 0.0
+        return (
+            (bt.quantity_ltr or 0.0)
+            * (bt.bottles_in_batch or 0)
+            * (item.quantity_kg or 0.0)
+        )
+
+    # Bill sale
+    return item.quantity_kg or 0.0
+
+
+
 def _to_float(value, default: float = 0.0) -> float:
     try:
         return float(value)
@@ -310,20 +337,22 @@ def register_routes(app: Flask) -> None:
         # Latest sales listing
         latest = Sale.query.order_by(Sale.date.desc(), Sale.id.desc()).limit(10).all()
 
-        # --- Totals computed from per-sale aggregation so freight is counted once per sale ---
+
         totals = db.session.execute(
             text(
                 """
                 SELECT
                 ROUND(SUM(qty_kg), 2) AS total_qty,
                 ROUND(SUM(sp), 2) AS total_sp,
-                ROUND(SUM(cp), 2) AS total_cp
+                ROUND(SUM(cp), 2) AS total_cp,
+                ROUND(SUM(freight), 2) AS total_freight
                 FROM (
                   SELECT
                     sale.id,
                     SUM(sale_item.quantity_kg) AS qty_kg,
                     SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
-                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) + COALESCE(sale.freight, 0) AS cp
+                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
+                    COALESCE(sale.freight, 0) AS freight
                   FROM sale
                   JOIN sale_item ON sale_item.sale_id = sale.id
                   GROUP BY sale.id
@@ -336,6 +365,7 @@ def register_routes(app: Flask) -> None:
         total_sp = float(totals["total_sp"] or 0)
         total_cp = float(totals["total_cp"] or 0)
         total_pl = round(total_sp - total_cp, 2)
+        total_freight = float(totals["total_freight"] or 0)
 
         # --- Monthly (last 6) using same per-sale method, aggregated by month ---
         monthly = db.session.execute(
@@ -344,14 +374,16 @@ def register_routes(app: Flask) -> None:
                 SELECT ym,
                     ROUND(SUM(qty_kg), 2) AS qty_kg,
                     ROUND(SUM(sp), 2) AS sp,
-                    ROUND(SUM(cp), 2) AS cp
+                    ROUND(SUM(cp), 2) AS cp,
+                    ROUND(SUM(freight), 2) AS freight
                 FROM (
                   SELECT
                     strftime('%Y-%m', sale.date) AS ym,
                     sale.id,
                     SUM(sale_item.quantity_kg) AS qty_kg,
                     SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
-                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) + COALESCE(sale.freight, 0) AS cp
+                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
+                    COALESCE(sale.freight, 0) AS freight
                   FROM sale
                   JOIN sale_item ON sale_item.sale_id = sale.id
                   GROUP BY sale.id
@@ -369,6 +401,7 @@ def register_routes(app: Flask) -> None:
                 "qty_kg": float(m["qty_kg"] or 0),
                 "sp": float(m["sp"] or 0),
                 "cp": float(m["cp"] or 0),
+                "freight": float(m["freight"] or 0),
                 "pl": round((float(m["sp"] or 0) - float(m["cp"] or 0)), 2),
             }
             for m in monthly
@@ -382,13 +415,15 @@ def register_routes(app: Flask) -> None:
                 SELECT
                 ROUND(SUM(qty_kg), 2) AS qty_kg,
                 ROUND(SUM(sp), 2) AS sp,
-                ROUND(SUM(cp), 2) AS cp
+                ROUND(SUM(cp), 2) AS cp,
+                ROUND(SUM(freight), 2) AS freight
                 FROM (
                   SELECT
                     sale.id,
                     SUM(sale_item.quantity_kg) AS qty_kg,
                     SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
-                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) + COALESCE(sale.freight, 0) AS cp
+                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
+                    COALESCE(sale.freight, 0) AS freight
                   FROM sale
                   JOIN sale_item ON sale_item.sale_id = sale.id
                   WHERE strftime('%Y-%m', sale.date) = :ym
@@ -404,6 +439,7 @@ def register_routes(app: Flask) -> None:
             "qty": float(current["qty_kg"] or 0),
             "sp": float(current["sp"] or 0),
             "cp": float(current["cp"] or 0),
+            "freight": float(current["freight"] or 0),
             "pl": round((float(current["sp"] or 0) - float(current["cp"] or 0)), 2),
         }
 
@@ -413,6 +449,7 @@ def register_routes(app: Flask) -> None:
             total_cp=round(total_cp, 2),
             total_sp=round(total_sp, 2),
             total_pl=total_pl,
+            total_freight=round(total_freight, 2),
             latest=latest,
             monthly=monthly,
             current_data=current_data,
@@ -995,4 +1032,4 @@ def register_cli(app: Flask) -> None:
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5002, debug=True)
