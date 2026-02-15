@@ -2,6 +2,46 @@
 {% block content %}
 <h3 class="mb-3">Dashboard</h3>
 <div class="row g-3 mb-4">
+
+  <!-- Receivable -->
+  <div class="col-md-4">
+    <div class="card shadow-sm border-0">
+      <div class="card-body text-center">
+        <h6 class="text-muted">Receivable Pending</h6>
+        <h4 class="text-danger">
+          ₹ {{ "%.2f"|format(total_sale_pending) }}
+        </h4>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payable -->
+  <div class="col-md-4">
+    <div class="card shadow-sm border-0">
+      <div class="card-body text-center">
+        <h6 class="text-muted">Purchase Payable</h6>
+        <h4 class="text-warning">
+          ₹ {{ "%.2f"|format(total_purchase_pending) }}
+        </h4>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profit -->
+  <div class="col-md-4">
+    <div class="card shadow-sm border-0">
+      <div class="card-body text-center">
+        <h6 class="text-muted">Profit / Loss</h6>
+        <h4 class="{{ 'text-success' if total_profit >= 0 else 'text-danger' }}">
+          ₹ {{ "%.2f"|format(total_profit) }}
+        </h4>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="row g-3 mb-4">
   <div class="col-md-3">
     <div class="card"><div class="card-body">
       <div class="fw-semibold">Total Quantity (kg)</div>

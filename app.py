@@ -438,31 +438,30 @@ def register_routes(app: Flask) -> None:
     # Dashboard
     @app.route("/")
     def index():
+
         # Latest sales listing
         latest = Sale.query.order_by(Sale.date.desc(), Sale.id.desc()).limit(10).all()
 
-
+        # --- Totals ---
         totals = db.session.execute(
-            text(
-                """
-                SELECT
+            text("""
+            SELECT
                 ROUND(SUM(qty_kg), 2) AS total_qty,
                 ROUND(SUM(sp), 2) AS total_sp,
                 ROUND(SUM(cp), 2) AS total_cp,
                 ROUND(SUM(freight), 2) AS total_freight
-                FROM (
-                  SELECT
+            FROM (
+                SELECT
                     sale.id,
                     SUM(sale_item.quantity_kg) AS qty_kg,
                     SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
                     SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
                     COALESCE(sale.freight, 0) AS freight
-                  FROM sale
-                  JOIN sale_item ON sale_item.sale_id = sale.id
-                  GROUP BY sale.id
-                ) per_sale
-                """
-            )
+                FROM sale
+                JOIN sale_item ON sale_item.sale_id = sale.id
+                GROUP BY sale.id
+            ) per_sale
+            """)
         ).mappings().first()
 
         total_qty = float(totals["total_qty"] or 0)
@@ -471,33 +470,30 @@ def register_routes(app: Flask) -> None:
         total_freight = float(totals["total_freight"] or 0)
         total_pl = round(total_sp - (total_cp + total_freight), 2)
 
-
-        # --- Monthly (last 6) using same per-sale method, aggregated by month ---
+        # --- Monthly (last 6 months) ---
         monthly = db.session.execute(
-            text(
-                """
-                SELECT ym,
-                    ROUND(SUM(qty_kg), 2) AS qty_kg,
-                    ROUND(SUM(sp), 2) AS sp,
-                    ROUND(SUM(cp), 2) AS cp,
-                    ROUND(SUM(freight), 2) AS freight
-                FROM (
-                  SELECT
+            text("""
+            SELECT ym,
+                ROUND(SUM(qty_kg), 2) AS qty_kg,
+                ROUND(SUM(sp), 2) AS sp,
+                ROUND(SUM(cp), 2) AS cp,
+                ROUND(SUM(freight), 2) AS freight
+            FROM (
+                SELECT
                     strftime('%Y-%m', sale.date) AS ym,
                     sale.id,
                     SUM(sale_item.quantity_kg) AS qty_kg,
                     SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
                     SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
                     COALESCE(sale.freight, 0) AS freight
-                  FROM sale
-                  JOIN sale_item ON sale_item.sale_id = sale.id
-                  GROUP BY sale.id
-                ) per_sale
-                GROUP BY ym
-                ORDER BY ym DESC
-                LIMIT 6
-                """
-            )
+                FROM sale
+                JOIN sale_item ON sale_item.sale_id = sale.id
+                GROUP BY sale.id
+            ) per_sale
+            GROUP BY ym
+            ORDER BY ym DESC
+            LIMIT 6
+            """)
         ).mappings().all()
 
         monthly = [
@@ -508,38 +504,36 @@ def register_routes(app: Flask) -> None:
                 "cp": float(m["cp"] or 0),
                 "freight": float(m["freight"] or 0),
                 "pl": round(
-                    float(m["sp"] or 0)
-                    - (float(m["cp"] or 0) + float(m["freight"] or 0)),
-                    2,
+                    float(m["sp"] or 0) -
+                    (float(m["cp"] or 0) + float(m["freight"] or 0)), 2
                 ),
             }
             for m in monthly
         ]
 
-        # --- Current month (same per-sale approach) ---
+        # --- Current Month ---
         current_ym = datetime.now().strftime("%Y-%m")
+
         current = db.session.execute(
-            text(
-                """
-                SELECT
+            text("""
+            SELECT
                 ROUND(SUM(qty_kg), 2) AS qty_kg,
                 ROUND(SUM(sp), 2) AS sp,
                 ROUND(SUM(cp), 2) AS cp,
                 ROUND(SUM(freight), 2) AS freight
-                FROM (
-                  SELECT
+            FROM (
+                SELECT
                     sale.id,
                     SUM(sale_item.quantity_kg) AS qty_kg,
                     SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
                     SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
                     COALESCE(sale.freight, 0) AS freight
-                  FROM sale
-                  JOIN sale_item ON sale_item.sale_id = sale.id
-                  WHERE strftime('%Y-%m', sale.date) = :ym
-                  GROUP BY sale.id
-                ) per_sale
-                """
-            ),
+                FROM sale
+                JOIN sale_item ON sale_item.sale_id = sale.id
+                WHERE strftime('%Y-%m', sale.date) = :ym
+                GROUP BY sale.id
+            ) per_sale
+            """),
             {"ym": current_ym},
         ).mappings().first()
 
@@ -556,9 +550,17 @@ def register_routes(app: Flask) -> None:
             "pl": round(current_sp - (current_cp + current_freight), 2),
         }
 
+        # --- Dashboard Metrics ---
+        sales = Sale.query.all()
+        purchases = Purchase.query.all()
+
+        total_sale_pending = round(sum(s.balance_due() for s in sales), 2)
+        total_purchase_pending = round(sum(p.balance_due() for p in purchases), 2)
+        total_profit = round(sum(s.pl() for s in sales), 2)
+
         return render_template(
             "index.html",
-            total_qty=round(total_qty or 0.0, 2),
+            total_qty=round(total_qty, 2),
             total_cp=round(total_cp, 2),
             total_sp=round(total_sp, 2),
             total_pl=total_pl,
@@ -566,6 +568,11 @@ def register_routes(app: Flask) -> None:
             latest=latest,
             monthly=monthly,
             current_data=current_data,
+
+            # Dashboard metrics
+            total_sale_pending=total_sale_pending,
+            total_purchase_pending=total_purchase_pending,
+            total_profit=total_profit,
         )
 
     # Clients
@@ -621,12 +628,33 @@ def register_routes(app: Flask) -> None:
     @app.route("/sales-payments")
     def sales_payments():
 
-        sales = Sale.query.order_by(Sale.date.desc()).all()
+        status_filter = request.args.get("status", "pending")  
+        # default = pending (Unpaid + Partial)
+
+        all_sales = Sale.query.order_by(Sale.date.desc()).all()
+
+        if status_filter == "paid":
+            sales = [s for s in all_sales if s.payment_status() == "Paid"]
+
+        elif status_filter == "unpaid":
+            sales = [s for s in all_sales if s.payment_status() == "Unpaid"]
+
+        elif status_filter == "partial":
+            sales = [s for s in all_sales if s.payment_status() == "Partial"]
+
+        else:
+            # default: unpaid + partial
+            sales = [
+                s for s in all_sales
+                if s.payment_status() in ["Unpaid", "Partial"]
+            ]
 
         return render_template(
             "sales_payments.html",
-            sales=sales
+            sales=sales,
+            status_filter=status_filter
         )
+
 
 
     @app.route("/sale/<int:sale_id>/payment", methods=["GET","POST"])
@@ -1041,11 +1069,31 @@ def register_routes(app: Flask) -> None:
     @app.route("/payments")
     def payments_list():
 
-        purchases = Purchase.query.order_by(Purchase.date.desc()).all()
+        status_filter = request.args.get("status", "pending")  
+        # default = pending (Unpaid + Partial)
+
+        all_purchases = Purchase.query.order_by(Purchase.date.desc()).all()
+
+        if status_filter == "paid":
+            purchases = [p for p in all_purchases if p.payment_status() == "Paid"]
+
+        elif status_filter == "unpaid":
+            purchases = [p for p in all_purchases if p.payment_status() == "Unpaid"]
+
+        elif status_filter == "partial":
+            purchases = [p for p in all_purchases if p.payment_status() == "Partial"]
+
+        else:
+            # default pending
+            purchases = [
+                p for p in all_purchases
+                if p.payment_status() in ["Unpaid", "Partial"]
+            ]
 
         return render_template(
             "payments_list.html",
-            purchases=purchases
+            purchases=purchases,
+            status_filter=status_filter
         )
 
 

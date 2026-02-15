@@ -5,6 +5,31 @@
   <h3>Payments Overview</h3>
 </div>
 
+<div class="mb-3">
+
+<a href="{{ url_for('payments_list', status='pending') }}"
+   class="btn btn-sm {{ 'btn-primary' if status_filter=='pending' else 'btn-outline-primary' }}">
+   Pending
+</a>
+
+<a href="{{ url_for('payments_list', status='unpaid') }}"
+   class="btn btn-sm {{ 'btn-primary' if status_filter=='unpaid' else 'btn-outline-primary' }}">
+   Unpaid
+</a>
+
+<a href="{{ url_for('payments_list', status='partial') }}"
+   class="btn btn-sm {{ 'btn-primary' if status_filter=='partial' else 'btn-outline-primary' }}">
+   Partial
+</a>
+
+<a href="{{ url_for('payments_list', status='paid') }}"
+   class="btn btn-sm {{ 'btn-primary' if status_filter=='paid' else 'btn-outline-primary' }}">
+   Paid
+</a>
+
+</div>
+
+
 <div class="table-responsive">
 <table class="table table-striped table-sm align-middle">
 
