@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3 class="mb-3">Sales Outstanding Report</h3>
+
+<div class="table-responsive">
+<table class="table table-striped table-sm align-middle">
+
+<thead>
+<tr>
+<th>Client</th>
+<th class="text-end">Total Sales</th>
+<th class="text-end">Total Received</th>
+<th class="text-end">Balance</th>
+</tr>
+</thead>
+
+<tbody>
+
+{% for client, data in report.items() %}
+<tr>
+
+<td>{{ client }}</td>
+
+<td class="text-end">
+₹ {{ "%.2f"|format(data.total_sales) }}
+</td>
+
+<td class="text-end text-success">
+₹ {{ "%.2f"|format(data.total_received) }}
+</td>
+
+<td class="text-end text-danger fw-semibold">
+₹ {{ "%.2f"|format(data.balance) }}
+</td>
+
+</tr>
+{% else %}
+<tr>
+<td colspan="4" class="text-center text-muted">
+No data available
+</td>
+</tr>
+{% endfor %}
+
+</tbody>
+
+</table>
+</div>
+
+
+{% endblock %}

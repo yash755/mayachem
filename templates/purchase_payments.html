@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3 class="mb-3">Purchase Payments</h3>
+
+<div class="card p-3 mb-3">
+
+<strong>Vendor:</strong> {{ purchase.vendor_name }}<br>
+<strong>Date:</strong> {{ purchase.date }}<br>
+<strong>Total Cost:</strong> ₹ {{ "%.2f"|format(purchase.total_cost()) }}<br>
+<strong>Total Paid:</strong> ₹ {{ "%.2f"|format(purchase.total_paid()) }}<br>
+<strong>Balance:</strong> ₹ {{ "%.2f"|format(purchase.balance_due()) }}
+
+</div>
+
+<div class="d-flex justify-content-between mb-2">
+<h5>Payment History</h5>
+
+<a href="{{ url_for('add_payment', purchase_id=purchase.id) }}"
+   class="btn btn-success btn-sm">
+   + Add Payment
+</a>
+</div>
+
+<table class="table table-sm table-striped">
+
+<thead>
+<tr>
+<th>Date</th>
+<th>Amount</th>
+<th>Mode</th>
+<th>Notes</th>
+</tr>
+</thead>
+
+<tbody>
+
+{% for p in payments %}
+<tr>
+<td>{{ p.date }}</td>
+<td>₹ {{ "%.2f"|format(p.amount) }}</td>
+<td>{{ p.mode }}</td>
+<td>{{ p.notes }}</td>
+</tr>
+{% else %}
+<tr>
+<td colspan="4" class="text-center text-muted">
+No payments recorded
+</td>
+</tr>
+{% endfor %}
+
+</tbody>
+</table>
+
+<a href="{{ url_for('purchases') }}" class="btn btn-secondary mt-3">
+Back to Purchases
+</a>
+
+{% endblock %}

@@ -77,11 +77,11 @@ class Client(db.Model):
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
-    client_name = db.Column(db.String(160), nullable=False)  # denormalized
+    client_name = db.Column(db.String(160), nullable=False)
     freight = db.Column(db.Float, nullable=False, default=0.0)
     quantity_kg = db.Column(db.Float, nullable=False, default=0.0, server_default="0.0")
-    sale_type = db.Column(db.String(16), nullable=False, default="bill")   # <— NEW
-    
+    sale_type = db.Column(db.String(16), nullable=False, default="bill")
+
     items = db.relationship("SaleItem", backref="sale", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
@@ -100,8 +100,28 @@ class Sale(db.Model):
         total = sum((i.selling_rate_per_kg or 0.0) * (i.quantity_kg or 0.0) for i in self.items)
         return round(total, 2)
 
+    # alias for reports and payments
+    def total_amount(self):
+        return self.total_sp()
+
     def pl(self) -> float:
         return round(self.total_sp() - self.total_cp(), 2)
+
+    def total_received(self):
+        return round(sum(p.amount for p in self.payments), 2)
+
+    def balance_due(self):
+        return round(self.total_amount() - self.total_received(), 2)
+
+    def payment_status(self):
+        if self.total_received() == 0:
+            return "Unpaid"
+        elif self.balance_due() > 0:
+            return "Partial"
+        else:
+            return "Paid"
+
+
 
 
 class SaleItem(db.Model):
@@ -114,6 +134,90 @@ class SaleItem(db.Model):
 
     def __repr__(self) -> str:
         return f"<SaleItem {self.quantity_kg}kg cost={self.cost_rate_per_kg} sp={self.selling_rate_per_kg}>"
+
+
+class SalePayment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    sale_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sale.id"),
+        nullable=False
+    )
+
+    date = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+
+    mode = db.Column(db.String(50))   # Cash / Bank / UPI
+    notes = db.Column(db.String(250))
+
+    sale = db.relationship("Sale", backref="payments")
+
+
+class Purchase(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False)
+    vendor_name = db.Column(db.String(160), nullable=False)
+    freight = db.Column(db.Float, nullable=False, default=0.0)
+
+    items = db.relationship("PurchaseItem", backref="purchase", cascade="all, delete-orphan")
+
+    def total_cost(self):
+        total = sum((i.rate_per_kg or 0.0) * (i.quantity_kg or 0.0) for i in self.items)
+        total += (self.freight or 0.0)
+        return round(total, 2)
+    
+    def total_quantity(self):
+        return round(sum(i.quantity_kg or 0 for i in self.items), 2)
+
+    def avg_cost_per_kg(self):
+        qty = self.total_quantity()
+        if qty == 0:
+            return 0
+        return round(self.total_cost() / qty, 2)
+
+    def total_paid(self):
+        return round(sum(p.amount for p in self.payments), 2)
+
+    def balance_due(self):
+        return round(self.total_cost() - self.total_paid(), 2)
+
+    def payment_status(self):
+        if self.total_paid() == 0:
+            return "Unpaid"
+        elif self.balance_due() > 0:
+            return "Partial"
+        else:
+            return "Paid"
+
+
+
+class PurchaseItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    purchase_id = db.Column(db.Integer, db.ForeignKey("purchase.id"), nullable=False)
+
+    quantity_kg = db.Column(db.Float, nullable=False, default=0.0)
+    rate_per_kg = db.Column(db.Float, nullable=False, default=0.0)
+
+
+class PurchasePayment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    purchase_id = db.Column(
+        db.Integer,
+        db.ForeignKey("purchase.id"),
+        nullable=False
+    )
+
+    date = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+
+    mode = db.Column(db.String(50))   # Cash / Bank / UPI
+    notes = db.Column(db.String(250))
+
+    purchase = db.relationship("Purchase", backref="payments")
+
+
 
 
 class BottleType(db.Model):
@@ -513,6 +617,95 @@ def register_routes(app: Flask) -> None:
             flash(f"Error: {exc}", "danger")
         return redirect(url_for("clients_list"))
 
+    
+    @app.route("/sales-payments")
+    def sales_payments():
+
+        sales = Sale.query.order_by(Sale.date.desc()).all()
+
+        return render_template(
+            "sales_payments.html",
+            sales=sales
+        )
+
+
+    @app.route("/sale/<int:sale_id>/payment", methods=["GET","POST"])
+    def add_sale_payment(sale_id):
+
+        sale = Sale.query.get_or_404(sale_id)
+
+        if request.method == "POST":
+
+            amount = float(request.form.get("amount"))
+            date = datetime.strptime(
+                request.form.get("date"), "%Y-%m-%d"
+            ).date()
+
+            mode = request.form.get("mode")
+            notes = request.form.get("notes")
+
+            payment = SalePayment(
+                sale_id=sale.id,
+                amount=amount,
+                date=date,
+                mode=mode,
+                notes=notes
+            )
+
+            db.session.add(payment)
+            db.session.commit()
+
+            flash("Payment recorded", "success")
+            return redirect(url_for("sales_payments"))
+
+        return render_template(
+            "sale_payment_form.html",
+            sale=sale
+        )
+
+    @app.route("/sale/<int:sale_id>/payments")
+    def sale_payments_detail(sale_id):
+
+        sale = Sale.query.get_or_404(sale_id)
+
+        payments = SalePayment.query.filter_by(
+            sale_id=sale.id
+        ).order_by(SalePayment.date.desc()).all()
+
+        return render_template(
+            "sale_payments_detail.html",
+            sale=sale,
+            payments=payments
+        )
+
+    
+    @app.route("/reports/sales-outstanding")
+    def sales_outstanding_report():
+
+        sales = Sale.query.all()
+
+        report = {}
+
+        for s in sales:
+            client = s.client_name
+
+            if client not in report:
+                report[client] = {
+                    "total_sales": 0,
+                    "total_received": 0,
+                    "balance": 0
+                }
+
+            report[client]["total_sales"] += s.total_amount()
+            report[client]["total_received"] += s.total_received()
+            report[client]["balance"] += s.balance_due()
+
+        return render_template(
+            "sales_outstanding_report.html",
+            report=report
+        )
+
+
     # Sales - create/edit
     @app.route("/sales/new", methods=["GET", "POST"])
     @app.route("/sales/<int:sale_id>/edit", methods=["GET", "POST"])
@@ -671,6 +864,219 @@ def register_routes(app: Flask) -> None:
         except Exception as exc:
             flash(f"Error: {exc}", "danger")
         return redirect(url_for("sales_list"))
+
+    @app.route("/purchases")
+    def purchases():
+        all_purchases = Purchase.query.order_by(Purchase.date.desc()).all()
+        return render_template("purchases.html", purchases=all_purchases)
+
+
+
+
+    @app.route("/purchase/new", methods=["GET", "POST"])
+    def new_purchase():
+
+        # Load clients for dropdown
+        clients = Client.query.order_by(Client.name).all()
+
+        if request.method == "POST":
+
+            vendor_id = request.form.get("vendor_id")
+            vendor_name = request.form.get("vendor_name")
+
+            # If vendor selected from dropdown
+            if vendor_id:
+                vendor = Client.query.get(vendor_id)
+                vendor_name = vendor.name if vendor else vendor_name
+
+            date_str = request.form.get("date")
+            freight = float(request.form.get("freight") or 0)
+
+            purchase = Purchase(
+                vendor_name=vendor_name,
+                date=datetime.strptime(date_str, "%Y-%m-%d").date(),
+                freight=freight
+            )
+
+            db.session.add(purchase)
+            db.session.flush()   # get purchase.id before commit
+
+            # Save line items
+            qty_list = request.form.getlist("quantity[]")
+            rate_list = request.form.getlist("rate[]")
+
+            for q, r in zip(qty_list, rate_list):
+                if q and r:
+                    item = PurchaseItem(
+                        purchase_id=purchase.id,
+                        quantity_kg=float(q),
+                        rate_per_kg=float(r)
+                    )
+                    db.session.add(item)
+
+            db.session.commit()
+
+            flash("Purchase created successfully", "success")
+            return redirect(url_for("purchases"))
+
+        return render_template(
+            "purchase_form.html",
+            clients=clients,
+            purchase=None
+        )
+
+
+
+    @app.route("/purchase/<int:purchase_id>/edit", methods=["GET", "POST"])
+    def edit_purchase(purchase_id):
+
+        purchase = Purchase.query.get_or_404(purchase_id)
+        clients = Client.query.order_by(Client.name).all()
+
+        if request.method == "POST":
+
+            vendor_id = request.form.get("vendor_id")
+            vendor_name = request.form.get("vendor_name")
+
+            if vendor_id:
+                vendor = Client.query.get(vendor_id)
+                vendor_name = vendor.name if vendor else vendor_name
+
+            purchase.vendor_name = vendor_name
+            purchase.date = datetime.strptime(
+                request.form.get("date"), "%Y-%m-%d"
+            ).date()
+
+            purchase.freight = float(request.form.get("freight") or 0)
+
+            # delete old items
+            PurchaseItem.query.filter_by(purchase_id=purchase.id).delete()
+
+            qty_list = request.form.getlist("quantity[]")
+            rate_list = request.form.getlist("rate[]")
+
+            for q, r in zip(qty_list, rate_list):
+                if q and r:
+                    db.session.add(PurchaseItem(
+                        purchase_id=purchase.id,
+                        quantity_kg=float(q),
+                        rate_per_kg=float(r)
+                    ))
+
+            db.session.commit()
+
+            flash("Purchase updated successfully", "success")
+            return redirect(url_for("purchases"))
+
+        return render_template(
+            "purchase_form.html",
+            purchase=purchase,
+            clients=clients
+        )
+
+
+
+    @app.route("/purchase/<int:purchase_id>/delete", methods=["POST"])
+    def delete_purchase(purchase_id):
+
+        purchase = Purchase.query.get_or_404(purchase_id)
+
+        db.session.delete(purchase)
+        db.session.commit()
+
+        flash("Purchase deleted successfully", "success")
+        return redirect(url_for("purchases"))
+
+
+    @app.route("/purchase/<int:purchase_id>/payment", methods=["GET","POST"])
+    def add_payment(purchase_id):
+
+        purchase = Purchase.query.get_or_404(purchase_id)
+
+        if request.method == "POST":
+            amount = float(request.form.get("amount"))
+            date = datetime.strptime(
+                request.form.get("date"), "%Y-%m-%d"
+            ).date()
+
+            mode = request.form.get("mode")
+            notes = request.form.get("notes")
+
+            payment = PurchasePayment(
+                purchase_id=purchase.id,
+                amount=amount,
+                date=date,
+                mode=mode,
+                notes=notes
+            )
+
+            db.session.add(payment)
+            db.session.commit()
+
+            flash("Payment recorded", "success")
+            return redirect(url_for("purchases"))
+
+        return render_template(
+            "purchase_payment_form.html",
+            purchase=purchase
+        )
+
+
+    @app.route("/purchase/<int:purchase_id>/payments")
+    def purchase_payments(purchase_id):
+
+        purchase = Purchase.query.get_or_404(purchase_id)
+
+        payments = PurchasePayment.query.filter_by(
+            purchase_id=purchase.id
+        ).order_by(PurchasePayment.date.desc()).all()
+
+        return render_template(
+            "purchase_payments.html",
+            purchase=purchase,
+            payments=payments
+    )
+
+
+    @app.route("/payments")
+    def payments_list():
+
+        purchases = Purchase.query.order_by(Purchase.date.desc()).all()
+
+        return render_template(
+            "payments_list.html",
+            purchases=purchases
+        )
+
+
+
+
+    @app.route("/reports/vendor-dues")
+    def vendor_dues_report():
+
+        purchases = Purchase.query.all()
+
+        report = {}
+
+        for p in purchases:
+            vendor = p.vendor_name
+
+            if vendor not in report:
+                report[vendor] = {
+                    "total_purchase": 0,
+                    "total_paid": 0,
+                    "balance": 0
+                }
+
+            report[vendor]["total_purchase"] += p.total_cost()
+            report[vendor]["total_paid"] += p.total_paid()
+            report[vendor]["balance"] += p.balance_due()
+
+        return render_template(
+            "vendor_dues_report.html",
+            report=report
+        )
+
 
     # Reports & Export
     @app.route("/reports")

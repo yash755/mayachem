@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<h3 class="mb-3">
+  {{ "Edit Purchase" if purchase else "New Purchase" }}
+</h3>
+
+<form method="post" class="card shadow-sm p-3">
+
+<div class="row g-3">
+
+<div class="col-md-3">
+<label class="form-label">Date</label>
+<input type="date"
+       name="date"
+       class="form-control"
+       value="{{ purchase.date if purchase else '' }}"
+       required>
+</div>
+
+<div class="col-md-6">
+<label class="form-label">Vendor</label>
+<div class="d-flex gap-2">
+
+<select name="vendor_id" class="form-select">
+<option value="">Select Vendor</option>
+{% for c in clients %}
+<option value="{{ c.id }}">{{ c.name }}</option>
+{% endfor %}
+</select>
+
+<input type="text"
+       name="vendor_name"
+       class="form-control"
+       value="{{ purchase.vendor_name if purchase else '' }}"
+       placeholder="Or type vendor name">
+
+</div>
+</div>
+
+<div class="col-md-3">
+<label class="form-label">Freight</label>
+<input type="number"
+       step="0.01"
+       name="freight"
+       id="freight"
+       class="form-control"
+       value="{{ purchase.freight if purchase else 0 }}">
+</div>
+
+<div class="col-12">
+<label class="form-label">Line Items</label>
+
+<table class="table table-sm align-middle">
+<thead>
+<tr>
+<th>Quantity (kg)</th>
+<th>Rate ₹/kg</th>
+<th width="80"></th>
+</tr>
+</thead>
+
+<tbody id="items-body">
+
+{% if purchase and purchase.items %}
+{% for item in purchase.items %}
+<tr class="item-row">
+<td>
+<input type="number" step="0.01"
+       name="quantity[]"
+       class="form-control qty"
+       value="{{ item.quantity_kg }}"
+       required>
+</td>
+<td>
+<input type="number" step="0.01"
+       name="rate[]"
+       class="form-control rate"
+       value="{{ item.rate_per_kg }}"
+       required>
+</td>
+<td>
+<button type="button" class="btn btn-sm btn-danger remove-row">−</button>
+</td>
+</tr>
+{% endfor %}
+{% else %}
+<tr class="item-row">
+<td><input name="quantity[]" class="form-control qty" required></td>
+<td><input name="rate[]" class="form-control rate" required></td>
+<td><button type="button" class="btn btn-sm btn-danger remove-row">−</button></td>
+</tr>
+{% endif %}
+
+</tbody>
+</table>
+
+<button type="button" id="add-row" class="btn btn-sm btn-secondary">+ Add Row</button>
+</div>
+
+<div class="col-12 mt-3">
+<div class="card bg-light p-3">
+<div class="d-flex justify-content-between">
+<h5>Total Cost</h5>
+<h5 class="text-primary">₹ <span id="totalCost">0.00</span></h5>
+</div>
+</div>
+</div>
+
+<div class="col-12">
+<button class="btn btn-primary">
+{{ "Update Purchase" if purchase else "Save Purchase" }}
+</button>
+</div>
+
+</div>
+</form>
+
+<script>
+
+function calculateTotal() {
+    let total = 0;
+
+    document.querySelectorAll(".item-row").forEach(row => {
+        let qty = parseFloat(row.querySelector(".qty")?.value) || 0;
+        let rate = parseFloat(row.querySelector(".rate")?.value) || 0;
+        total += qty * rate;
+    });
+
+    let freight = parseFloat(document.getElementById("freight")?.value) || 0;
+    total += freight;
+
+    document.getElementById("totalCost").innerText = total.toFixed(2);
+}
+
+document.addEventListener("input", function(e) {
+    if (
+        e.target.classList.contains("qty") ||
+        e.target.classList.contains("rate") ||
+        e.target.id === "freight"
+    ) {
+        calculateTotal();
+    }
+});
+
+document.getElementById("add-row").addEventListener("click", function() {
+    const row = document.querySelector(".item-row").cloneNode(true);
+    row.querySelectorAll("input").forEach(i => i.value = "");
+    document.getElementById("items-body").appendChild(row);
+});
+
+document.addEventListener("click", function(e){
+    if(e.target.classList.contains("remove-row")){
+        const rows = document.querySelectorAll(".item-row");
+        if(rows.length > 1){
+            e.target.closest("tr").remove();
+            calculateTotal();
+        }
+    }
+});
+
+window.onload = calculateTotal;
+
+</script>
+
+{% endblock %}

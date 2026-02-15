@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>Add Payment</h3>
+
+<div class="card p-3 mb-3">
+  <strong>Vendor:</strong> {{ purchase.vendor_name }}<br>
+  <strong>Total:</strong> ₹ {{ purchase.total_cost() }}<br>
+  <strong>Paid:</strong> ₹ {{ purchase.total_paid() }}<br>
+  <strong>Balance:</strong> ₹ {{ purchase.balance_due() }}
+</div>
+
+<form method="post" class="card p-3">
+
+<div class="mb-3">
+<label>Date</label>
+<input type="date" name="date" class="form-control" required>
+</div>
+
+<div class="mb-3">
+<label>Amount</label>
+<input type="number" step="0.01" name="amount" class="form-control" required>
+</div>
+
+<div class="mb-3">
+<label>Mode</label>
+<select name="mode" class="form-select">
+<option>Cash</option>
+<option>Bank</option>
+<option>UPI</option>
+</select>
+</div>
+
+<div class="mb-3">
+<label>Notes</label>
+<input type="text" name="notes" class="form-control">
+</div>
+
+<button class="btn btn-primary">Save Payment</button>
+
+</form>
+
+{% endblock %}
