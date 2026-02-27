@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+<h3 class="mb-4">Outstanding Reports</h3>
+
+<hr>
+
+<!-- ================= CLIENT RECEIVABLE ================= -->
+<h4 class="mb-3">Client Receivable</h4>
+
+{% include "sales_outstanding_report.html" %}
+
+<hr class="my-4">
+
+<!-- ================= VENDOR OUTSTANDING ================= -->
+<h4 class="mb-3">Vendor Outstanding</h4>
+
+{% include "vendor_dues_report.html" %}
+
+</div>
+
+{% endblock %}

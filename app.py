@@ -370,6 +370,49 @@ def commit_or_rollback():
         raise
 
 
+def get_vendor_dues():
+
+    purchases = Purchase.query.all()
+    report = {}
+
+    for p in purchases:
+        vendor = p.vendor_name
+
+        if vendor not in report:
+            report[vendor] = {
+                "total_purchase": 0,
+                "total_paid": 0,
+                "balance": 0
+            }
+
+        report[vendor]["total_purchase"] += p.total_cost()
+        report[vendor]["total_paid"] += p.total_paid()
+        report[vendor]["balance"] += p.balance_due()
+
+    return report
+
+
+def get_sales_outstanding():
+
+    sales = Sale.query.all()
+    report = {}
+
+    for s in sales:
+        client = s.client_name
+
+        if client not in report:
+            report[client] = {
+                "total_sales": 0,
+                "total_received": 0,
+                "balance": 0
+            }
+
+        report[client]["total_sales"] += s.total_amount()
+        report[client]["total_received"] += s.total_received()
+        report[client]["balance"] += s.balance_due()
+
+    return report
+
 # -----------------------------------------------------------------------------
 # Routes
 # -----------------------------------------------------------------------------
@@ -1125,6 +1168,18 @@ def register_routes(app: Flask) -> None:
             report=report
         )
 
+
+    @app.route("/outstanding-report")
+    def outstanding_report():
+
+        vendor_report = get_vendor_dues()
+        client_report = get_sales_outstanding()
+
+        return render_template(
+            "outstanding_report.html",
+            vendor_report=vendor_report,
+            client_report=client_report
+        )
 
     # Reports & Export
     @app.route("/reports")
