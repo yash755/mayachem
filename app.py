@@ -224,6 +224,16 @@ class Purchase(db.Model):
         if qty == 0:
             return 0
         return round(self.total_cost() / qty, 2)
+    
+    def avg_raw_rate_per_kg(self):
+        total_qty = sum(i.quantity_kg or 0 for i in self.items)
+        if total_qty == 0:
+            return 0
+        total_value = sum(
+            (i.rate_per_kg or 0) * (i.quantity_kg or 0)
+            for i in self.items
+        )
+        return round(total_value / total_qty, 2)
 
     def total_paid(self):
         return round(sum(p.amount for p in self.payments), 2)

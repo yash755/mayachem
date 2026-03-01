@@ -18,33 +18,15 @@
 <ul class="navbar-nav me-auto">
 <li class="nav-item"><a class="nav-link" href="{{ url_for('sales_list') }}">Sales</a></li>
 <li class="nav-item"><a class="nav-link" href="{{ url_for('purchases') }}">Purchases</a></li>
-<!-- 
-<li class="nav-item"><a class="nav-link" href="{{ url_for('reports') }}">Reports</a></li> -->
-<li class="nav-item"><a class="nav-link" href="{{ url_for('clients_list') }}">Clients</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('expenses_list') }}">Expenses</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('clients_list') }}">Parties</a></li>
 <li class="nav-item"><a class="nav-link" href="{{ url_for('bottles_list') }}">Bottles</a></li>
 <li class="nav-item"><a class="nav-link" href="{{ url_for('locations_page') }}">Locations</a></li>
 <li class="nav-item"><a class="nav-link" href="{{ url_for('leads_page') }}">Leads</a></li>
-<li class="nav-item">
-  <a class="nav-link" href="{{ url_for('payments_list') }}">
-    Payments
-  </a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="{{ url_for('outstanding_report') }}">
-    Outstanding Reports
-  </a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="{{ url_for('sales_payments') }}">
-    Receivables
-  </a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="{{ url_for('expenses_list') }}">
-    Expenses
-  </a>
-</li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('payments_list') }}">Purchase Payment</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('sales_payments') }}">Client Recieve</a></li>
 
+<li class="nav-item"><a class="nav-link" href="{{ url_for('outstanding_report') }}">Reports</a></li>
 
 
 </ul>
