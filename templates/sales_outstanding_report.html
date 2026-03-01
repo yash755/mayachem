@@ -13,7 +13,7 @@
 
 <tbody>
 
-{% for client, data in client_report.items() %}
+{% for client, data in client_report.items() if data.balance > 0 %}
 <tr>
 
 <td>{{ client }}</td>
@@ -34,7 +34,7 @@
 {% else %}
 <tr>
 <td colspan="4" class="text-center text-muted">
-No data available
+No outstanding balance
 </td>
 </tr>
 {% endfor %}

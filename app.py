@@ -839,7 +839,6 @@ def register_routes(app: Flask) -> None:
     def sales_outstanding_report():
 
         sales = Sale.query.all()
-
         report = {}
 
         for s in sales:
@@ -856,11 +855,16 @@ def register_routes(app: Flask) -> None:
             report[client]["total_received"] += s.total_received()
             report[client]["balance"] += s.balance_due()
 
+        # ✅ KEEP ONLY POSITIVE OUTSTANDING
+        report = {
+            k: v for k, v in report.items()
+            if v["balance"] > 0
+        }
+
         return render_template(
             "sales_outstanding_report.html",
             report=report
         )
-
 
     # Sales - create/edit
     @app.route("/sales/new", methods=["GET", "POST"])
