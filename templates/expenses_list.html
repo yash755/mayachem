@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between mb-3">
+<h3>Expenses</h3>
+<a href="{{ url_for('expenses_form') }}"
+class="btn btn-primary">+ Add</a>
+</div>
+
+<h5>Total Expense: ₹ {{ total }}</h5>
+
+<table class="table">
+<tr>
+<th>Date</th>
+<th>Category</th>
+<th>Description</th>
+<th>Amount</th>
+<th></th>
+</tr>
+
+{% for e in expenses %}
+<tr>
+<td>{{ e.date }}</td>
+<td>{{ e.category }}</td>
+<td>{{ e.description }}</td>
+<td>₹ {{ e.amount }}</td>
+<td>
+<a href="{{ url_for('expenses_form',
+expense_id=e.id) }}"
+class="btn btn-sm btn-outline-primary">Edit</a>
+
+<form method="post"
+action="{{ url_for('expenses_delete',
+expense_id=e.id) }}"
+style="display:inline">
+<button class="btn btn-sm btn-danger">
+Delete
+</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+
+</table>
+
+{% endblock %}

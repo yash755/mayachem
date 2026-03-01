@@ -1,178 +1,217 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% block content %}
-<h3 class="mb-3">Dashboard</h3>
+
+<h3 class="mb-4">📊 Business Dashboard</h3>
+
+<!-- ===================== -->
+<!-- TOP SUMMARY CARDS -->
+<!-- ===================== -->
 <div class="row g-3 mb-4">
 
-  <!-- Receivable -->
-  <div class="col-md-4">
-    <div class="card shadow-sm border-0">
-      <div class="card-body text-center">
-        <h6 class="text-muted">Receivable Pending</h6>
-        <h4 class="text-danger">
-          ₹ {{ "%.2f"|format(total_sale_pending) }}
-        </h4>
-      </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm p-3">
+      <h6>Total Sales</h6>
+      <h4>₹ {{ total_sp }}</h4>
     </div>
   </div>
 
-  <!-- Payable -->
-  <div class="col-md-4">
-    <div class="card shadow-sm border-0">
-      <div class="card-body text-center">
-        <h6 class="text-muted">Purchase Payable</h6>
-        <h4 class="text-warning">
-          ₹ {{ "%.2f"|format(total_purchase_pending) }}
-        </h4>
-      </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm p-3">
+      <h6>Total Cost</h6>
+      <h4>₹ {{ total_cp }}</h4>
     </div>
   </div>
 
-  <!-- Profit -->
-  <div class="col-md-4">
-    <div class="card shadow-sm border-0">
-      <div class="card-body text-center">
-        <h6 class="text-muted">Profit / Loss</h6>
-        <h4 class="{{ 'text-success' if total_profit >= 0 else 'text-danger' }}">
-          ₹ {{ "%.2f"|format(total_profit) }}
-        </h4>
-      </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm p-3">
+      <h6>Total Expense</h6>
+      <h4 class="text-danger">₹ {{ total_expense }}</h4>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div class="card shadow-sm p-3 bg-success text-white">
+      <h6>Net Profit</h6>
+      <h4>₹ {{ total_profit }}</h4>
     </div>
   </div>
 
 </div>
 
+
+<!-- ===================== -->
+<!-- PENDING SUMMARY -->
+<!-- ===================== -->
 <div class="row g-3 mb-4">
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="fw-semibold">Total Quantity (kg)</div>
-      <div class="fs-4">{{ '%.2f'|format(total_qty) }}</div>
-    </div></div>
+
+  <div class="col-md-6">
+    <div class="card p-3 shadow-sm">
+      <h6>Receivable (Clients)</h6>
+      <h4 class="text-warning">
+        ₹ {{ total_sale_pending }}
+      </h4>
+    </div>
   </div>
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="fw-semibold">Total CP</div>
-      <div class="fs-4">&#8377; {{ '%.2f'|format(total_cp) }}</div>
-    </div></div>
+
+  <div class="col-md-6">
+    <div class="card p-3 shadow-sm">
+      <h6>Payable (Vendors)</h6>
+      <h4 class="text-danger">
+        ₹ {{ total_purchase_pending }}
+      </h4>
+    </div>
   </div>
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="fw-semibold">Total SP</div>
-      <div class="fs-4">&#8377; {{ '%.2f'|format(total_sp) }}</div>
-    </div></div>
-  </div>
-  <div class="col-md-3">
-  <div class="card"><div class="card-body">
-    <div class="fw-semibold">Total Freight</div>
-    <div class="fs-4">&#8377; {{ '%.2f'|format(total_freight) }}</div>
-  </div></div>
-</div>
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="fw-semibold">Total P/L</div>
-      <div class="fs-4 {% if total_pl >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(total_pl) }}</div>
-    </div></div>
-  </div>
+
 </div>
 
 
-<h5 class="mt-3">Current Month ({{ current_data.ym }})</h5>
-<div class="row g-3 mb-4">
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="fw-semibold">Total Quantity (kg)</div>
-      <div class="fs-4">{{ '%.2f'|format(current_data.qty) }}</div>
-    </div></div>
-  </div>
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="fw-semibold">Total CP</div>
-      <div class="fs-4">&#8377; {{ '%.2f'|format(current_data.cp) }}</div>
-    </div></div>
-  </div>
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="fw-semibold">Total SP</div>
-      <div class="fs-4">&#8377; {{ '%.2f'|format(current_data.sp) }}</div>
-    </div></div>
-  </div>
-  <div class="col-md-3">
-  <div class="card"><div class="card-body">
-    <div class="fw-semibold">Total Freight</div>
-    <div class="fs-4">&#8377; {{ '%.2f'|format(current_data.freight) }}</div>
-  </div></div>
-</div>
-  <div class="col-md-3">
-    <div class="card"><div class="card-body">
-      <div class="fw-semibold">Total P/L</div>
-      <div class="fs-4 {% if current_data.pl >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(current_data.pl) }}</div>
-    </div></div>
-  </div>
+<!-- ===================== -->
+<!-- CURRENT MONTH -->
+<!-- ===================== -->
+<div class="card shadow-sm mb-4">
+<div class="card-header fw-bold">
+📅 Current Month ({{ current_data.ym }})
 </div>
 
-<h5>Latest Sales</h5>
+<div class="card-body">
+<div class="row text-center">
+
+  <div class="col-md-2">
+    <small>Qty</small>
+    <h5>{{ current_data.qty }} kg</h5>
+  </div>
+
+  <div class="col-md-2">
+    <small>Sales</small>
+    <h5>₹ {{ current_data.sp }}</h5>
+  </div>
+
+  <div class="col-md-2">
+    <small>Cost</small>
+    <h5>₹ {{ current_data.cp }}</h5>
+  </div>
+
+  <div class="col-md-2">
+    <small>Freight</small>
+    <h5>₹ {{ current_data.freight }}</h5>
+  </div>
+
+  <div class="col-md-2">
+    <small>Expense</small>
+    <h5 class="text-danger">
+      ₹ {{ current_data.expense }}
+    </h5>
+  </div>
+
+  <div class="col-md-2">
+    <small>Net P/L</small>
+    <h5 class="{% if current_data.pl >=0 %}text-success{% else %}text-danger{% endif %}">
+      ₹ {{ current_data.pl }}
+    </h5>
+  </div>
+
+</div>
+</div>
+</div>
+
+
+<!-- ===================== -->
+<!-- MONTHLY PERFORMANCE -->
+<!-- ===================== -->
+<div class="card shadow-sm mb-4">
+
+<div class="card-header fw-bold">
+📈 Monthly Performance
+</div>
+
 <div class="table-responsive">
-<table class="table table-sm table-striped align-middle">
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Client</th>
-      <!-- <th class="text-end">Qty (kg)</th>
-      
-      <th class="text-end">SP Total</th>
-      <th class="text-end">CP</th> -->
-      <th class="text-end">Freight</th>
-      <th class="text-end">P/L</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for s in latest %}
-    <tr>
-      <td>{{ s.date }}</td>
-      <td>{{ s.client_name }}</td>
-      <!-- <td class="text-end">{{ '%.2f'|format(s.total_qty) }}</td>
-      
-      <td class="text-end">&#8377; {{ '%.2f'|format(s.total_sp()) }}</td>
-      <td class="text-end">&#8377; {{ '%.2f'|format(s.total_cp()) }}</td> -->
-      <td class="text-end">{{ '%.2f'|format(s.freight or 0) }}</td>
-      <td class="text-end {% if s.pl() >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(s.pl()) }}</td>
-      <td class="text-nowrap">
-        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sales_form', sale_id=s.id) }}">Edit</a>
-        <!-- <form class="d-inline" method="post" action="{{ url_for('sales_delete', sale_id=s.id) }}" onsubmit="return confirm('Delete this sale?');">
-          <button class="btn btn-sm btn-outline-danger">Delete</button>
-        </form> -->
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
+<table class="table table-striped mb-0">
+
+<thead class="table-dark">
+<tr>
+<th>Month</th>
+<th>Qty (kg)</th>
+<th>Sales</th>
+<th>Cost</th>
+<th>Freight</th>
+<th>Expense</th>
+<th>Net Profit</th>
+</tr>
+</thead>
+
+<tbody>
+{% for m in monthly %}
+<tr>
+<td>{{ m.ym }}</td>
+<td>{{ m.qty_kg }}</td>
+<td>₹ {{ m.sp }}</td>
+<td>₹ {{ m.cp }}</td>
+<td>₹ {{ m.freight }}</td>
+<td class="text-danger">₹ {{ m.expense }}</td>
+
+<td class="{% if m.pl >=0 %}text-success{% else %}text-danger{% endif %}">
+₹ {{ m.pl }}
+</td>
+</tr>
+{% endfor %}
+</tbody>
+
+</table>
+</div>
+</div>
+
+
+<!-- ===================== -->
+<!-- LATEST SALES -->
+<!-- ===================== -->
+<div class="card shadow-sm">
+
+<div class="card-header fw-bold">
+🧾 Latest Sales
+</div>
+
+<div class="table-responsive">
+<table class="table table-sm table-hover mb-0">
+
+<thead class="table-light">
+<tr>
+<th>Date</th>
+<th>Client</th>
+<th>Qty</th>
+<th>Total</th>
+<th>Status</th>
+</tr>
+</thead>
+
+<tbody>
+{% for s in latest %}
+<tr>
+<td>{{ s.date }}</td>
+<td>{{ s.client_name }}</td>
+<td>{{ s.total_qty }}</td>
+<td>₹ {{ s.total_amount() }}</td>
+
+<td>
+<span class="badge
+{% if s.payment_status()=='Paid' %}
+bg-success
+{% elif s.payment_status()=='Partial' %}
+bg-warning
+{% else %}
+bg-danger
+{% endif %}
+">
+{{ s.payment_status() }}
+</span>
+</td>
+
+</tr>
+{% endfor %}
+</tbody>
+
 </table>
 </div>
 
-<h5 class="mt-4">Monthly (last 6)</h5>
-<div class="table-responsive">
-<table class="table table-sm">
-  <thead>
-    <tr>
-      <th>Month</th>
-      <th class="text-end">Qty (kg)</th>
-      <th class="text-end">Freight</th>
-      <th class="text-end">SP Total</th>
-      <th class="text-end">CP Total</th>
-      <th class="text-end">P/L</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for m in monthly %}
-    <tr>
-      <td>{{ m.ym }}</td>
-      <td class="text-end">{{ '%.2f'|format(m.qty_kg or 0) }}</td>
-      <td class="text-end">{{ m.freight | round(2) }}</td>
-      <td class="text-end">&#8377; {{ '%.2f'|format(m.sp or 0) }}</td>
-      <td class="text-end">&#8377; {{ '%.2f'|format(m.cp or 0) }}</td>
-      <td class="text-end {% if m.pl >= 0 %}text-success{% else %}text-danger{% endif %}">&#8377; {{ '%.2f'|format(m.pl) }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
 </div>
+
 {% endblock %}

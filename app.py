@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timedelta
 from dateutil import tz
 from typing import Optional
+from sqlalchemy import func
 
 from flask import (
     Flask,
@@ -28,6 +29,20 @@ from sqlalchemy import text, func
 db = SQLAlchemy()
 KG_PER_TON = 1000.0
 
+
+EXPENSE_CATEGORIES = [
+    "CNG",
+    "Labour",
+    "Loading / Unloading",
+    "Transport",
+    "Office Rent",
+    "Electricity",
+    "Phone / Internet",
+    "Repair & Maintenance",
+    "Packaging",
+    "Food / Tea",
+    "Miscellaneous"
+]
 
 
 def create_app(test_config: Optional[dict] = None) -> Flask:
@@ -121,7 +136,25 @@ class Sale(db.Model):
         else:
             return "Paid"
 
+class Expense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
 
+    date = db.Column(db.Date, nullable=False)
+
+    category = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.String(300))
+
+    amount = db.Column(db.Float, nullable=False)
+
+    mode = db.Column(db.String(50))   # Cash / Bank / UPI
+
+    created_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow
+    )
+
+    def __repr__(self):
+        return f"<Expense {self.category} ₹{self.amount}>"
 
 
 class SaleItem(db.Model):
@@ -482,24 +515,31 @@ def register_routes(app: Flask) -> None:
     @app.route("/")
     def index():
 
-        # Latest sales listing
-        latest = Sale.query.order_by(Sale.date.desc(), Sale.id.desc()).limit(10).all()
+        # --------------------------------------------------
+        # Latest sales
+        # --------------------------------------------------
+        latest = Sale.query.order_by(
+            Sale.date.desc(),
+            Sale.id.desc()
+        ).limit(10).all()
 
-        # --- Totals ---
+        # --------------------------------------------------
+        # TOTAL SALES SUMMARY
+        # --------------------------------------------------
         totals = db.session.execute(
             text("""
             SELECT
-                ROUND(SUM(qty_kg), 2) AS total_qty,
-                ROUND(SUM(sp), 2) AS total_sp,
-                ROUND(SUM(cp), 2) AS total_cp,
-                ROUND(SUM(freight), 2) AS total_freight
+                ROUND(SUM(qty_kg),2) AS total_qty,
+                ROUND(SUM(sp),2) AS total_sp,
+                ROUND(SUM(cp),2) AS total_cp,
+                ROUND(SUM(freight),2) AS total_freight
             FROM (
                 SELECT
                     sale.id,
-                    SUM(sale_item.quantity_kg) AS qty_kg,
-                    SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
-                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
-                    COALESCE(sale.freight, 0) AS freight
+                    SUM(sale_item.quantity_kg) qty_kg,
+                    SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) sp,
+                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) cp,
+                    COALESCE(sale.freight,0) freight
                 FROM sale
                 JOIN sale_item ON sale_item.sale_id = sale.id
                 GROUP BY sale.id
@@ -511,24 +551,30 @@ def register_routes(app: Flask) -> None:
         total_sp = float(totals["total_sp"] or 0)
         total_cp = float(totals["total_cp"] or 0)
         total_freight = float(totals["total_freight"] or 0)
-        total_pl = round(total_sp - (total_cp + total_freight), 2)
 
-        # --- Monthly (last 6 months) ---
-        monthly = db.session.execute(
+        total_pl = round(
+            total_sp - (total_cp + total_freight),
+            2
+        )
+
+        # --------------------------------------------------
+        # MONTHLY SALES (LAST 6 MONTHS)
+        # --------------------------------------------------
+        monthly_raw = db.session.execute(
             text("""
             SELECT ym,
-                ROUND(SUM(qty_kg), 2) AS qty_kg,
-                ROUND(SUM(sp), 2) AS sp,
-                ROUND(SUM(cp), 2) AS cp,
-                ROUND(SUM(freight), 2) AS freight
+                ROUND(SUM(qty_kg),2) qty_kg,
+                ROUND(SUM(sp),2) sp,
+                ROUND(SUM(cp),2) cp,
+                ROUND(SUM(freight),2) freight
             FROM (
                 SELECT
-                    strftime('%Y-%m', sale.date) AS ym,
+                    strftime('%Y-%m', sale.date) ym,
                     sale.id,
-                    SUM(sale_item.quantity_kg) AS qty_kg,
-                    SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
-                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
-                    COALESCE(sale.freight, 0) AS freight
+                    SUM(sale_item.quantity_kg) qty_kg,
+                    SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) sp,
+                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) cp,
+                    COALESCE(sale.freight,0) freight
                 FROM sale
                 JOIN sale_item ON sale_item.sale_id = sale.id
                 GROUP BY sale.id
@@ -539,68 +585,104 @@ def register_routes(app: Flask) -> None:
             """)
         ).mappings().all()
 
-        monthly = [
-            {
-                "ym": m["ym"],
-                "qty_kg": float(m["qty_kg"] or 0),
-                "sp": float(m["sp"] or 0),
-                "cp": float(m["cp"] or 0),
-                "freight": float(m["freight"] or 0),
-                "pl": round(
-                    float(m["sp"] or 0) -
-                    (float(m["cp"] or 0) + float(m["freight"] or 0)), 2
-                ),
-            }
-            for m in monthly
-        ]
+        # --------------------------------------------------
+        # MONTHLY EXPENSE
+        # --------------------------------------------------
+        expense_monthly = dict(
+            db.session.query(
+                func.strftime('%Y-%m', Expense.date),
+                func.sum(Expense.amount)
+            )
+            .group_by(func.strftime('%Y-%m', Expense.date))
+            .all()
+        )
 
-        # --- Current Month ---
+        # --------------------------------------------------
+        # MERGE SALES + EXPENSE
+        # --------------------------------------------------
+        monthly = []
+
+        for m in monthly_raw:
+
+            ym = m["ym"]
+
+            qty = float(m["qty_kg"] or 0)
+            sp = float(m["sp"] or 0)
+            cp = float(m["cp"] or 0)
+            freight = float(m["freight"] or 0)
+            expense = float(expense_monthly.get(ym, 0) or 0)
+
+            gross_pl = sp - (cp + freight)
+            net_pl = gross_pl - expense
+
+            monthly.append({
+                "ym": ym,
+                "qty_kg": qty,
+                "sp": sp,
+                "cp": cp,
+                "freight": freight,
+                "expense": round(expense, 2),
+                "pl": round(net_pl, 2)
+            })
+
+        # --------------------------------------------------
+        # CURRENT MONTH DATA
+        # --------------------------------------------------
         current_ym = datetime.now().strftime("%Y-%m")
 
-        current = db.session.execute(
-            text("""
-            SELECT
-                ROUND(SUM(qty_kg), 2) AS qty_kg,
-                ROUND(SUM(sp), 2) AS sp,
-                ROUND(SUM(cp), 2) AS cp,
-                ROUND(SUM(freight), 2) AS freight
-            FROM (
-                SELECT
-                    sale.id,
-                    SUM(sale_item.quantity_kg) AS qty_kg,
-                    SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) AS sp,
-                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) AS cp,
-                    COALESCE(sale.freight, 0) AS freight
-                FROM sale
-                JOIN sale_item ON sale_item.sale_id = sale.id
-                WHERE strftime('%Y-%m', sale.date) = :ym
-                GROUP BY sale.id
-            ) per_sale
-            """),
-            {"ym": current_ym},
-        ).mappings().first()
-
-        current_sp = float(current["sp"] or 0)
-        current_cp = float(current["cp"] or 0)
-        current_freight = float(current["freight"] or 0)
+        current = next(
+            (m for m in monthly if m["ym"] == current_ym),
+            {
+                "qty_kg": 0,
+                "sp": 0,
+                "cp": 0,
+                "freight": 0,
+                "expense": 0,
+                "pl": 0
+            }
+        )
 
         current_data = {
             "ym": current_ym,
-            "qty": float(current["qty_kg"] or 0),
-            "sp": current_sp,
-            "cp": current_cp,
-            "freight": current_freight,
-            "pl": round(current_sp - (current_cp + current_freight), 2),
+            "qty": current["qty_kg"],
+            "sp": current["sp"],
+            "cp": current["cp"],
+            "freight": current["freight"],
+            "expense": current["expense"],
+            "pl": current["pl"]
         }
 
-        # --- Dashboard Metrics ---
+        # --------------------------------------------------
+        # DASHBOARD METRICS
+        # --------------------------------------------------
         sales = Sale.query.all()
         purchases = Purchase.query.all()
 
-        total_sale_pending = round(sum(s.balance_due() for s in sales), 2)
-        total_purchase_pending = round(sum(p.balance_due() for p in purchases), 2)
-        total_profit = round(sum(s.pl() for s in sales), 2)
+        total_expense = db.session.query(
+            func.sum(Expense.amount)
+        ).scalar() or 0
 
+        total_sale_pending = round(
+            sum(s.balance_due() for s in sales), 2
+        )
+
+        total_purchase_pending = round(
+            sum(p.balance_due() for p in purchases), 2
+        )
+
+        gross_profit = round(
+            sum(s.pl() for s in sales),
+            2
+        )
+
+        net_profit = round(
+            gross_profit - total_expense,
+            2
+        )
+
+        # --------------------------------------------------
+        # RENDER
+        # --------------------------------------------------
         return render_template(
             "index.html",
             total_qty=round(total_qty, 2),
@@ -608,15 +690,18 @@ def register_routes(app: Flask) -> None:
             total_sp=round(total_sp, 2),
             total_pl=total_pl,
             total_freight=round(total_freight, 2),
+
             latest=latest,
             monthly=monthly,
             current_data=current_data,
 
-            # Dashboard metrics
             total_sale_pending=total_sale_pending,
             total_purchase_pending=total_purchase_pending,
-            total_profit=total_profit,
+            total_expense=round(total_expense, 2),
+            total_profit=net_profit,
+            gross_profit=gross_profit
         )
+
 
     # Clients
     @app.route("/clients")
@@ -922,8 +1007,26 @@ def register_routes(app: Flask) -> None:
 
     @app.route("/sales")
     def sales_list():
-        sales = Sale.query.order_by(Sale.date.desc(), Sale.id.desc()).all()
-        return render_template("sales_list.html", rows=sales)
+        q = request.args.get("q", "").strip()
+
+        query = Sale.query
+
+        # Apply search filter
+        if q:
+            query = query.filter(
+                Sale.client_name.ilike(f"%{q}%")
+            )
+
+        sales = query.order_by(
+            Sale.date.desc(),
+            Sale.id.desc()
+        ).all()
+
+        return render_template(
+            "sales_list.html",
+            rows=sales,
+            q=q
+        )
 
     @app.route("/sales/<int:sale_id>/delete", methods=["POST"])
     def sales_delete(sale_id):
@@ -1502,6 +1605,94 @@ def register_routes(app: Flask) -> None:
             return jsonify({"error": str(exc)}), 500
         return jsonify({"id": loc.id, "name": loc.name})
 
+
+
+    @app.route("/expenses")
+    def expenses_list():
+
+        q = (request.args.get("q") or "").strip()
+
+        query = Expense.query
+
+        if q:
+            query = query.filter(
+                Expense.category.ilike(f"%{q}%")
+            )
+
+        expenses = query.order_by(
+            Expense.date.desc(),
+            Expense.id.desc()
+        ).all()
+
+        total = sum(e.amount for e in expenses)
+
+        return render_template(
+            "expenses_list.html",
+            expenses=expenses,
+            total=round(total,2),
+            q=q
+        )
+
+
+
+
+    @app.route("/expenses/new", methods=["GET","POST"])
+    @app.route("/expenses/<int:expense_id>/edit", methods=["GET","POST"])
+    def expenses_form(expense_id=None):
+
+        expense = Expense.query.get(expense_id) if expense_id else None
+
+        if request.method == "POST":
+            try:
+                date = _parse_date(request.form.get("date"))
+                category = request.form.get("category")
+                description = request.form.get("description")
+                amount = float(request.form.get("amount"))
+                mode = request.form.get("mode")
+
+                if not expense:
+                    expense = Expense(
+                        date=date,
+                        category=category,
+                        description=description,
+                        amount=amount,
+                        mode=mode
+                    )
+                    db.session.add(expense)
+                else:
+                    expense.date = date
+                    expense.category = category
+                    expense.description = description
+                    expense.amount = amount
+                    expense.mode = mode
+
+                commit_or_rollback()
+
+                flash("Expense saved", "success")
+                return redirect(url_for("expenses_list"))
+
+            except Exception as exc:
+                flash(str(exc), "danger")
+
+        return render_template(
+            "expense_form.html",
+            expense=expense,
+            categories=EXPENSE_CATEGORIES
+        )
+
+
+
+    @app.route("/expenses/<int:expense_id>/delete", methods=["POST"])
+    def expenses_delete(expense_id):
+
+        expense = Expense.query.get_or_404(expense_id)
+
+        db.session.delete(expense)
+        commit_or_rollback()
+
+        flash("Expense deleted", "info")
+
+        return redirect(url_for("expenses_list"))
 
 
 # -----------------------------------------------------------------------------
