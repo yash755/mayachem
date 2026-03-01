@@ -193,11 +193,27 @@ class Purchase(db.Model):
     vendor_name = db.Column(db.String(160), nullable=False)
     freight = db.Column(db.Float, nullable=False, default=0.0)
 
+    gst_percent = db.Column(db.Float, nullable=False, default=0.0)
+    subtotal = db.Column(db.Float, nullable=False, default=0.0)
+    cgst_amount = db.Column(db.Float, nullable=False, default=0.0)
+    sgst_amount = db.Column(db.Float, nullable=False, default=0.0)
+    igst_amount = db.Column(db.Float, nullable=False, default=0.0)
+    grand_total = db.Column(db.Float, nullable=False, default=0.0)
+
     items = db.relationship("PurchaseItem", backref="purchase", cascade="all, delete-orphan")
 
     def total_cost(self):
-        total = sum((i.rate_per_kg or 0.0) * (i.quantity_kg or 0.0) for i in self.items)
+        # If GST-based total exists, use it
+        if self.grand_total and self.grand_total > 0:
+            return round(self.grand_total, 2)
+
+        # Fallback for old purchases
+        total = sum(
+            (i.rate_per_kg or 0.0) * (i.quantity_kg or 0.0)
+            for i in self.items
+        )
         total += (self.freight or 0.0)
+
         return round(total, 2)
     
     def total_quantity(self):
@@ -524,7 +540,7 @@ def register_routes(app: Flask) -> None:
         ).limit(10).all()
 
         # --------------------------------------------------
-        # TOTAL SALES SUMMARY
+        # TOTAL SALES SUMMARY (Sales Side Only)
         # --------------------------------------------------
         totals = db.session.execute(
             text("""
@@ -548,14 +564,8 @@ def register_routes(app: Flask) -> None:
         ).mappings().first()
 
         total_qty = float(totals["total_qty"] or 0)
-        total_sp = float(totals["total_sp"] or 0)
-        total_cp = float(totals["total_cp"] or 0)
+        total_sp_sql = float(totals["total_sp"] or 0)
         total_freight = float(totals["total_freight"] or 0)
-
-        total_pl = round(
-            total_sp - (total_cp + total_freight),
-            2
-        )
 
         # --------------------------------------------------
         # MONTHLY SALES (LAST 6 MONTHS)
@@ -585,9 +595,6 @@ def register_routes(app: Flask) -> None:
             """)
         ).mappings().all()
 
-        # --------------------------------------------------
-        # MONTHLY EXPENSE
-        # --------------------------------------------------
         expense_monthly = dict(
             db.session.query(
                 func.strftime('%Y-%m', Expense.date),
@@ -597,9 +604,6 @@ def register_routes(app: Flask) -> None:
             .all()
         )
 
-        # --------------------------------------------------
-        # MERGE SALES + EXPENSE
-        # --------------------------------------------------
         monthly = []
 
         for m in monthly_raw:
@@ -653,7 +657,7 @@ def register_routes(app: Flask) -> None:
         }
 
         # --------------------------------------------------
-        # DASHBOARD METRICS
+        # DASHBOARD METRICS (FIXED ACCOUNTING)
         # --------------------------------------------------
         sales = Sale.query.all()
         purchases = Purchase.query.all()
@@ -662,16 +666,29 @@ def register_routes(app: Flask) -> None:
             func.sum(Expense.amount)
         ).scalar() or 0
 
+        # ✅ GST-inclusive purchase cost
+        total_purchase_cost = round(
+            sum(p.total_cost() for p in purchases),
+            2
+        )
+
+        total_sales_amount = round(
+            sum(s.total_amount() for s in sales),
+            2
+        )
+
         total_sale_pending = round(
-            sum(s.balance_due() for s in sales), 2
+            sum(s.balance_due() for s in sales),
+            2
         )
 
         total_purchase_pending = round(
-            sum(p.balance_due() for p in purchases), 2
+            sum(p.balance_due() for p in purchases),
+            2
         )
 
         gross_profit = round(
-            sum(s.pl() for s in sales),
+            total_sales_amount - total_purchase_cost,
             2
         )
 
@@ -686,9 +703,9 @@ def register_routes(app: Flask) -> None:
         return render_template(
             "index.html",
             total_qty=round(total_qty, 2),
-            total_cp=round(total_cp, 2),
-            total_sp=round(total_sp, 2),
-            total_pl=total_pl,
+            total_cp=total_purchase_cost,
+            total_sp=round(total_sales_amount, 2),
+            total_pl=net_profit,
             total_freight=round(total_freight, 2),
 
             latest=latest,
@@ -701,7 +718,6 @@ def register_routes(app: Flask) -> None:
             total_profit=net_profit,
             gross_profit=gross_profit
         )
-
 
     # Clients
     @app.route("/clients")
@@ -839,6 +855,7 @@ def register_routes(app: Flask) -> None:
     def sales_outstanding_report():
 
         sales = Sale.query.all()
+
         report = {}
 
         for s in sales:
@@ -855,16 +872,11 @@ def register_routes(app: Flask) -> None:
             report[client]["total_received"] += s.total_received()
             report[client]["balance"] += s.balance_due()
 
-        # ✅ KEEP ONLY POSITIVE OUTSTANDING
-        report = {
-            k: v for k, v in report.items()
-            if v["balance"] > 0
-        }
-
         return render_template(
             "sales_outstanding_report.html",
             report=report
         )
+
 
     # Sales - create/edit
     @app.route("/sales/new", methods=["GET", "POST"])
@@ -1054,56 +1066,95 @@ def register_routes(app: Flask) -> None:
     @app.route("/purchase/new", methods=["GET", "POST"])
     def new_purchase():
 
-        # Load clients for dropdown
         clients = Client.query.order_by(Client.name).all()
 
         if request.method == "POST":
 
-            vendor_id = request.form.get("vendor_id")
-            vendor_name = request.form.get("vendor_name")
+            try:
+                vendor_id = request.form.get("vendor_id")
+                vendor_name = request.form.get("vendor_name")
 
-            # If vendor selected from dropdown
-            if vendor_id:
-                vendor = Client.query.get(vendor_id)
-                vendor_name = vendor.name if vendor else vendor_name
+                # If vendor selected from dropdown
+                if vendor_id:
+                    vendor = Client.query.get(vendor_id)
+                    vendor_name = vendor.name if vendor else vendor_name
 
-            date_str = request.form.get("date")
-            freight = float(request.form.get("freight") or 0)
+                if not vendor_name:
+                    raise ValueError("Vendor name is required")
 
-            purchase = Purchase(
-                vendor_name=vendor_name,
-                date=datetime.strptime(date_str, "%Y-%m-%d").date(),
-                freight=freight
-            )
+                date_str = request.form.get("date")
+                freight = float(request.form.get("freight") or 0)
+                gst_percent = float(request.form.get("gst_percent") or 0)
 
-            db.session.add(purchase)
-            db.session.flush()   # get purchase.id before commit
+                purchase = Purchase(
+                    vendor_name=vendor_name,
+                    date=datetime.strptime(date_str, "%Y-%m-%d").date(),
+                    freight=freight,
+                    gst_percent=gst_percent
+                )
 
-            # Save line items
-            qty_list = request.form.getlist("quantity[]")
-            rate_list = request.form.getlist("rate[]")
+                db.session.add(purchase)
+                db.session.flush()   # generate purchase.id
 
-            for q, r in zip(qty_list, rate_list):
-                if q and r:
-                    item = PurchaseItem(
-                        purchase_id=purchase.id,
-                        quantity_kg=float(q),
-                        rate_per_kg=float(r)
-                    )
-                    db.session.add(item)
+                # -----------------------------
+                # Save Line Items
+                # -----------------------------
+                qty_list = request.form.getlist("quantity[]")
+                rate_list = request.form.getlist("rate[]")
 
-            db.session.commit()
+                subtotal = 0
 
-            flash("Purchase created successfully", "success")
-            return redirect(url_for("purchases"))
+                for q, r in zip(qty_list, rate_list):
+                    if q and r:
+                        qty = float(q)
+                        rate = float(r)
+
+                        subtotal += qty * rate
+
+                        item = PurchaseItem(
+                            purchase_id=purchase.id,
+                            quantity_kg=qty,
+                            rate_per_kg=rate
+                        )
+                        db.session.add(item)
+
+                # Add freight to subtotal
+                subtotal += freight
+
+                # -----------------------------
+                # GST Calculation
+                # -----------------------------
+                gst_amount = subtotal * gst_percent / 100
+
+                cgst = gst_amount / 2
+                sgst = gst_amount / 2
+                igst = 0  # assuming intra-state purchase
+
+                grand_total = subtotal + gst_amount
+
+                # -----------------------------
+                # Save GST Fields
+                # -----------------------------
+                purchase.subtotal = round(subtotal, 2)
+                purchase.cgst_amount = round(cgst, 2)
+                purchase.sgst_amount = round(sgst, 2)
+                purchase.igst_amount = round(igst, 2)
+                purchase.grand_total = round(grand_total, 2)
+
+                db.session.commit()
+
+                flash("Purchase created successfully", "success")
+                return redirect(url_for("purchases"))
+
+            except Exception as exc:
+                db.session.rollback()
+                flash(f"Error: {exc}", "danger")
 
         return render_template(
             "purchase_form.html",
             clients=clients,
             purchase=None
-        )
-
-
+        )       
 
     @app.route("/purchase/<int:purchase_id>/edit", methods=["GET", "POST"])
     def edit_purchase(purchase_id):
@@ -1113,45 +1164,91 @@ def register_routes(app: Flask) -> None:
 
         if request.method == "POST":
 
-            vendor_id = request.form.get("vendor_id")
-            vendor_name = request.form.get("vendor_name")
+            try:
+                vendor_id = request.form.get("vendor_id")
+                vendor_name = request.form.get("vendor_name")
 
-            if vendor_id:
-                vendor = Client.query.get(vendor_id)
-                vendor_name = vendor.name if vendor else vendor_name
+                if vendor_id:
+                    vendor = Client.query.get(vendor_id)
+                    vendor_name = vendor.name if vendor else vendor_name
 
-            purchase.vendor_name = vendor_name
-            purchase.date = datetime.strptime(
-                request.form.get("date"), "%Y-%m-%d"
-            ).date()
+                if not vendor_name:
+                    raise ValueError("Vendor name is required")
 
-            purchase.freight = float(request.form.get("freight") or 0)
+                # -----------------------------
+                # Basic Fields
+                # -----------------------------
+                purchase.vendor_name = vendor_name
+                purchase.date = datetime.strptime(
+                    request.form.get("date"), "%Y-%m-%d"
+                ).date()
 
-            # delete old items
-            PurchaseItem.query.filter_by(purchase_id=purchase.id).delete()
+                purchase.freight = float(request.form.get("freight") or 0)
+                purchase.gst_percent = float(request.form.get("gst_percent") or 0)
 
-            qty_list = request.form.getlist("quantity[]")
-            rate_list = request.form.getlist("rate[]")
+                # -----------------------------
+                # Delete Old Line Items
+                # -----------------------------
+                PurchaseItem.query.filter_by(purchase_id=purchase.id).delete()
 
-            for q, r in zip(qty_list, rate_list):
-                if q and r:
-                    db.session.add(PurchaseItem(
-                        purchase_id=purchase.id,
-                        quantity_kg=float(q),
-                        rate_per_kg=float(r)
-                    ))
+                qty_list = request.form.getlist("quantity[]")
+                rate_list = request.form.getlist("rate[]")
 
-            db.session.commit()
+                subtotal = 0
 
-            flash("Purchase updated successfully", "success")
-            return redirect(url_for("purchases"))
+                # -----------------------------
+                # Re-add Line Items
+                # -----------------------------
+                for q, r in zip(qty_list, rate_list):
+                    if q and r:
+                        qty = float(q)
+                        rate = float(r)
+
+                        subtotal += qty * rate
+
+                        db.session.add(PurchaseItem(
+                            purchase_id=purchase.id,
+                            quantity_kg=qty,
+                            rate_per_kg=rate
+                        ))
+
+                # Add freight
+                subtotal += purchase.freight
+
+                # -----------------------------
+                # GST Calculation
+                # -----------------------------
+                gst_amount = subtotal * purchase.gst_percent / 100
+
+                cgst = gst_amount / 2
+                sgst = gst_amount / 2
+                igst = 0  # assuming intra-state
+
+                grand_total = subtotal + gst_amount
+
+                # -----------------------------
+                # Update GST Fields
+                # -----------------------------
+                purchase.subtotal = round(subtotal, 2)
+                purchase.cgst_amount = round(cgst, 2)
+                purchase.sgst_amount = round(sgst, 2)
+                purchase.igst_amount = round(igst, 2)
+                purchase.grand_total = round(grand_total, 2)
+
+                db.session.commit()
+
+                flash("Purchase updated successfully", "success")
+                return redirect(url_for("purchases"))
+
+            except Exception as exc:
+                db.session.rollback()
+                flash(f"Error: {exc}", "danger")
 
         return render_template(
             "purchase_form.html",
             purchase=purchase,
             clients=clients
         )
-
 
 
     @app.route("/purchase/<int:purchase_id>/delete", methods=["POST"])
