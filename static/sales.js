@@ -62,6 +62,12 @@
         var totalSpEl = qs("#total_sp");
         var plEl = qs("#pl");
 
+        var gstPercentEl = qs("#gst_percent");
+        var miscEl = qs("#misc_amount");
+        var subtotalEl = qs("#subtotal");
+        var gstAmountEl = qs("#gst_amount");
+        var grandTotalEl = qs("#grand_total");
+
         if (!itemsBodyBill || !itemsBodyCash || !saleTypeEl) {
           // Not the page we expect — bail quietly
           return;
@@ -72,6 +78,18 @@
           var q = safeParseFloat(qty);
           if (unit === "ton") return q * 1000;
           return q;
+        }
+
+        function computeGST(subtotal) {
+          var gstPercent = safeParseFloat(gstPercentEl ? gstPercentEl.value : 0);
+          var misc = safeParseFloat(miscEl ? miscEl.value : 0);
+
+          var gstAmount = subtotal * gstPercent / 100;
+          var grandTotal = subtotal + gstAmount + misc;
+
+          if (subtotalEl) subtotalEl.value = subtotal.toFixed(2);
+          if (gstAmountEl) gstAmountEl.value = gstAmount.toFixed(2);
+          if (grandTotalEl) grandTotalEl.value = grandTotal.toFixed(2);
         }
 
         // Bill totals
@@ -92,7 +110,10 @@
             totalCp += freight;
             if (totalCpEl) totalCpEl.value = totalCp.toFixed(2);
             if (totalSpEl) totalSpEl.value = totalSp.toFixed(2);
-            if (plEl) plEl.value = (totalSp - totalCp).toFixed(2);
+            var misc = safeParseFloat(miscEl ? miscEl.value : 0);
+            if (plEl) plEl.value = (totalSp - totalCp - misc).toFixed(2);
+
+            computeGST(totalSp);
           } catch (e) {
             logError(e);
           }
@@ -114,7 +135,10 @@
             totalCp += freight;
             if (totalCpEl) totalCpEl.value = totalCp.toFixed(2);
             if (totalSpEl) totalSpEl.value = totalSp.toFixed(2);
-            if (plEl) plEl.value = (totalSp - totalCp).toFixed(2);
+            var misc = safeParseFloat(miscEl ? miscEl.value : 0);
+            if (plEl) plEl.value = (totalSp - totalCp - misc).toFixed(2);
+
+            computeGST(totalSp);
           } catch (e) {
             logError(e);
           }
@@ -283,6 +307,9 @@
         if (addRowCashBtn) addRowCashBtn.addEventListener('click', function () { makeCashRow('', 1, '', ''); computeCashTotals(); });
 
         if (freightEl) freightEl.addEventListener('input', computeAll);
+
+        if (gstPercentEl) gstPercentEl.addEventListener("change", computeAll);
+        if (miscEl) miscEl.addEventListener("input", computeAll);
 
         function computeAll() {
           if (saleTypeEl && saleTypeEl.value === 'cash') computeCashTotals();

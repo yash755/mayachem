@@ -1,207 +1,265 @@
 {% extends 'base.html' %}
 {% block content %}
-<h3>{{ 'Edit Sale' if sale else 'New Sale' }}</h3>
 
-<form method="post" id="sale-form" class="row g-3">
-  <!-- Date -->
-  <div class="col-md-3">
-    <label class="form-label">Date</label>
-    <input type="date" name="date" class="form-control"
-           value="{{ sale.date if sale else '' }}" required>
-  </div>
+<div class="container mt-4">
 
-  <!-- Sale Type -->
-  <div class="col-md-3">
-    <label class="form-label">Sale Type</label>
-    <select name="sale_type" id="sale_type" class="form-select">
-      <option value="bill" {% if sale_type == 'bill' %}selected{% endif %}>Bill</option>
-      <option value="cash" {% if sale_type == 'cash' %}selected{% endif %}>Cash (bottles)</option>
-    </select>
-  </div>
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
 
-  <!-- Client -->
-  <div class="col-md-6">
-    <label class="form-label">Client</label>
-    <div class="d-flex gap-2">
-      <select name="client_id" id="client_id" class="form-select">
-        <option value="" {% if not sale %}selected{% endif %}>(choose client)</option>
-        {% for c in clients %}
-          <option value="{{ c.id }}" {% if sale and sale.client_name == c.name %}selected{% endif %}>{{ c.name }}</option>
-        {% endfor %}
-      </select>
-      <input type="text" name="client_name" id="client_name" class="form-control"
-             placeholder="Or type client name"
-             value="{{ sale.client_name if sale else '' }}">
+      <h4 class="mb-4">{{ 'Edit Sale' if sale else 'New Sale' }}</h4>
+
+      <form method="post" id="sale-form" class="row g-4">
+
+        <!-- Date -->
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Date</label>
+          <input type="date" name="date" class="form-control" value="{{ sale.date if sale else '' }}" required>
+        </div>
+
+        <!-- Sale Type -->
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Sale Type</label>
+          <select name="sale_type" id="sale_type" class="form-select">
+            <option value="bill" {% if sale_type=='bill' %}selected{% endif %}>Bill</option>
+            <option value="cash" {% if sale_type=='cash' %}selected{% endif %}>Cash (bottles)</option>
+          </select>
+        </div>
+
+        <!-- Client -->
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Client</label>
+          <div class="d-flex gap-2">
+            <select name="client_id" id="client_id" class="form-select">
+              <option value="">(choose client)</option>
+              {% for c in clients %}
+              <option value="{{ c.id }}" {% if sale and sale.client_name==c.name %}selected{% endif %}>
+                {{ c.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <input type="text" name="client_name" id="client_name" class="form-control"
+              placeholder="Or type client name" value="{{ sale.client_name if sale else '' }}">
+          </div>
+        </div>
+
+        <!-- BILL MODE -->
+        <div id="bill-mode" style="display:none;" class="col-12 mt-3">
+          <label class="form-label fw-semibold">Line Items</label>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle" id="items-table-bill">
+              <thead class="table-light">
+                <tr>
+                  <th>Qty</th>
+                  <th>Unit</th>
+                  <th>Cost ₹/kg</th>
+                  <th>Sell ₹/kg</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="items-body-bill">
+                {% if sale and sale.sale_type == 'bill' and sale.items %}
+                {% for item in sale.items %}
+                <tr class="item-row">
+                  <td><input name="quantity[]" class="form-control" value="{{ item.quantity_kg }}" required></td>
+                  <td>
+                    <select name="unit[]" class="form-select">
+                      <option value="kg">kg</option>
+                      <option value="ton">ton</option>
+                    </select>
+                  </td>
+                  <td><input name="cost_rate[]" class="form-control" value="{{ item.cost_rate_per_kg }}" required></td>
+                  <td><input name="sell_rate[]" class="form-control" value="{{ item.selling_rate_per_kg }}" required>
+                  </td>
+                  <td>
+                    <button type="button" class="btn btn-sm btn-danger remove-row">−</button>
+                  </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr class="item-row">
+                  <td><input name="quantity[]" class="form-control" required></td>
+                  <td>
+                    <select name="unit[]" class="form-select">
+                      <option value="kg">kg</option>
+                      <option value="ton">ton</option>
+                    </select>
+                  </td>
+                  <td><input name="cost_rate[]" class="form-control" required></td>
+                  <td><input name="sell_rate[]" class="form-control" required></td>
+                  <td>
+                    <button type="button" class="btn btn-sm btn-danger remove-row">−</button>
+                  </td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" id="add-row-bill" class="btn btn-outline-secondary btn-sm">
+            + Add Row
+          </button>
+        </div>
+
+        <!-- CASH MODE -->
+        <div id="cash-mode" style="display:none;" class="col-12 mt-3">
+          <label class="form-label fw-semibold">Bottle Lines</label>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle" id="items-table-cash">
+              <thead class="table-light">
+                <tr>
+                  <th>Bottle Type</th>
+                  <th>Batches</th>
+                  <th>CP / batch</th>
+                  <th>SP / batch</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="items-body-cash">
+                {% if sale and sale.sale_type == 'cash' and sale.items %}
+                {% for item in sale.items %}
+                <tr class="cash-row">
+                  <td>
+                    <select name="bottle_type_id[]" class="form-select bottle-type-select">
+                      <option value="">(choose)</option>
+                      {% for bt in bottle_types %}
+                      <option value="{{ bt.id }}" data-cp="{{ '%.2f'|format(bt.cp_per_batch()) }}"
+                        data-sp="{{ '%.2f'|format(bt.sp_per_batch()) }}" {% if bt.id==item.bottle_type_id %}selected{%
+                        endif %}>
+                        {{ bt.label }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td><input name="batches[]" class="form-control" value="{{ item.quantity_kg|int }}" required></td>
+                  <td><input class="form-control cp-per-batch" value="{{ item.cost_rate_per_kg }}" readonly></td>
+                  <td><input class="form-control sp-per-batch" name="sp_batch[]" value="{{ item.selling_rate_per_kg }}">
+                  </td>
+                  <td>
+                    <button type="button" class="btn btn-sm btn-danger remove-cash-row">−</button>
+                  </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr class="cash-row">
+                  <td>
+                    <select name="bottle_type_id[]" class="form-select bottle-type-select">
+                      <option value="">(choose)</option>
+                      {% for bt in bottle_types %}
+                      <option value="{{ bt.id }}" data-cp="{{ '%.2f'|format(bt.cp_per_batch()) }}"
+                        data-sp="{{ '%.2f'|format(bt.sp_per_batch()) }}">
+                        {{ bt.label }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td><input name="batches[]" class="form-control" value="1" required></td>
+                  <td><input class="form-control cp-per-batch" readonly></td>
+                  <td><input class="form-control sp-per-batch" name="sp_batch[]"></td>
+                  <td>
+                    <button type="button" class="btn btn-sm btn-danger remove-cash-row">−</button>
+                  </td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" id="add-row-cash" class="btn btn-outline-secondary btn-sm">
+            + Add Bottle Row
+          </button>
+        </div>
+
+        <!-- SUMMARY -->
+
+        <!-- SUMMARY -->
+        <div class="col-12 mt-4">
+          <div class="border rounded p-4 bg-light">
+
+            <div class="row g-3">
+
+              <!-- Left side inputs -->
+              <div class="col-md-4">
+                <label class="form-label">Freight (₹)</label>
+                <input type="number" step="0.01" min="0" name="freight" id="freight" class="form-control"
+                  value="{{ sale.freight if sale else 0 }}">
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">GST %</label>
+                {% set current_gst = sale.gst_percent if sale else 0 %}
+                <select name="gst_percent" id="gst_percent" class="form-select">
+                  <option value="0" {% if current_gst==0 %}selected{% endif %}>0%</option>
+                  <option value="4" {% if current_gst==4 %}selected{% endif %}>4%</option>
+                  <option value="10" {% if current_gst==10 %}selected{% endif %}>10%</option>
+                  <option value="14" {% if current_gst==14 %}selected{% endif %}>14%</option>
+                  <option value="18" {% if current_gst==18 %}selected{% endif %}>18%</option>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Misc (₹)</label>
+                <input type="number" step="0.01" min="0" name="misc_amount" id="misc_amount" class="form-control"
+                  value="{{ sale.misc_amount if sale else 0 }}">
+              </div>
+
+              <!-- Right side summary -->
+              <div class="col-md-6">
+
+                <div class="d-flex justify-content-between mb-2">
+                  <span>Subtotal</span>
+                  <span>₹ <input id="subtotal" class="border-0 bg-transparent text-end" readonly></span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2">
+                  <span>GST</span>
+                  <span>₹ <input id="gst_amount" class="border-0 bg-transparent text-end" readonly></span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2">
+                  <span>Total CP</span>
+                  <span>₹ <input id="total_cp" class="border-0 bg-transparent text-end" readonly></span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2">
+                  <span>Total SP</span>
+                  <span>₹ <input id="total_sp" class="border-0 bg-transparent text-end" readonly></span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2">
+                  <span>Profit / Loss</span>
+                  <span>₹ <input id="pl" class="border-0 bg-transparent text-end fw-bold" readonly></span>
+                </div>
+
+                <hr>
+
+                <div class="d-flex justify-content-between fs-5 fw-bold">
+                  <span>Grand Total</span>
+                  <span class="text-primary">
+                    ₹ <input id="grand_total" class="border-0 bg-transparent text-end fw-bold text-primary" readonly>
+                  </span>
+                </div>
+
+              </div>
+
+              <!-- Hidden but required for JS -->
+              <input type="hidden" id="total_cp">
+
+            </div>
+
+          </div>
+        </div>
+        <div class="col-12 mt-3">
+          <button class="btn btn-primary px-4">Save</button>
+          <a class="btn btn-secondary" href="{{ url_for('sales_list') }}">
+            Cancel
+          </a>
+        </div>
+
+      </form>
+
     </div>
-    <div class="form-text">If both chosen, the dropdown wins.</div>
   </div>
 
-  <!-- Hidden template select used by JS when creating cash rows -->
-  <div style="display:none;">
-    <select class="form-select bottle-type-select">
-      <option value="">(choose)</option>
-      {% for bt in bottle_types %}
-        <option value="{{ bt.id }}"
-                data-cp="{{ '%.2f'|format(bt.cp_per_batch()) }}"
-                data-sp="{{ '%.2f'|format(bt.sp_per_batch()) }}">
-          {{ bt.label }} ({{ bt.bottles_in_batch }} per batch)
-        </option>
-      {% endfor %}
-    </select>
-  </div>
-
-  <!-- BILL MODE -->
-  <div id="bill-mode" style="display:none;" class="col-12">
-    <label class="form-label">Line Items (Bill)</label>
-    <div class="table-responsive">
-<table class="table table-sm" id="items-table-bill">
-      <thead>
-        <tr><th>Qty</th><th>Unit</th><th>Cost ₹/kg</th><th>Sell ₹/kg</th><th></th></tr>
-      </thead>
-      <tbody id="items-body-bill">
-        {% if sale and sale.items and sale_type == 'bill' %}
-          {% for item in sale.items %}
-          <tr class="item-row">
-            <td><input name="quantity[]" class="form-control"
-                       value="{{ '%.2f'|format(item.quantity_kg) }}" required></td>
-            <td>
-              <select name="unit[]" class="form-select">
-                <option value="kg" selected>kg</option>
-                <option value="ton">ton</option>
-              </select>
-            </td>
-            <td><input name="cost_rate[]" class="form-control"
-                       value="{{ '%.2f'|format(item.cost_rate_per_kg) }}" required></td>
-            <td><input name="sell_rate[]" class="form-control"
-                       value="{{ '%.2f'|format(item.selling_rate_per_kg) }}" required></td>
-            <td><button type="button" class="btn btn-sm btn-danger remove-row">−</button></td>
-          </tr>
-          {% endfor %}
-        {% else %}
-          <tr class="item-row">
-            <td><input name="quantity[]" class="form-control" required></td>
-            <td>
-              <select name="unit[]" class="form-select">
-                <option value="kg">kg</option>
-                <option value="ton">ton</option>
-              </select>
-            </td>
-            <td><input name="cost_rate[]" class="form-control" required></td>
-            <td><input name="sell_rate[]" class="form-control" required></td>
-            <td><button type="button" class="btn btn-sm btn-danger remove-row">−</button></td>
-          </tr>
-        {% endif %}
-      </tbody>
-    </table>
 </div>
-    <button type="button" id="add-row-bill" class="btn btn-outline-primary btn-sm">Add row</button>
-  </div>
-
-  <!-- CASH MODE -->
-  <div id="cash-mode" style="display:none;" class="col-12">
-    <label class="form-label">Bottle Lines (Cash)</label>
-    <div class="table-responsive">
-<table class="table table-sm" id="items-table-cash">
-      <thead>
-        <tr><th>Bottle Type</th><th>Batches</th><th>CP / batch (₹)</th><th>SP / batch (₹)</th><th></th></tr>
-      </thead>
-      <tbody id="items-body-cash">
-        {% if sale and sale.items and sale_type == 'cash' %}
-          {% for item in sale.items %}
-          <tr class="cash-row">
-            <td>
-              <select name="bottle_type_id[]" class="form-select bottle-type-select">
-                <option value="">(choose)</option>
-                {% for bt in bottle_types %}
-                  {% set selected = '' %}
-                  {% if item.bottle_type_id and bt.id == item.bottle_type_id %}
-                    {% set selected = 'selected' %}
-                  {% elif ('%.2f'|format(bt.cp_per_batch()) == '%.2f'|format(item.cost_rate_per_kg))
-                        and ('%.2f'|format(bt.sp_per_batch()) == '%.2f'|format(item.selling_rate_per_kg)) %}
-                    {% set selected = 'selected' %}
-                  {% endif %}
-                  <option value="{{ bt.id }}"
-                          data-cp="{{ '%.2f'|format(bt.cp_per_batch()) }}"
-                          data-sp="{{ '%.2f'|format(bt.sp_per_batch()) }}"
-                          {{ selected }}>
-                    {{ bt.label }} ({{ bt.bottles_in_batch }} per batch)
-                  </option>
-                {% endfor %}
-              </select>
-            </td>
-
-            <td><input name="batches[]" class="form-control"
-                       value="{{ item.quantity_kg|int }}" required></td>
-
-            <td><input class="form-control cp-per-batch" readonly
-                       value="{{ '%.2f'|format(item.cost_rate_per_kg) }}"></td>
-
-            <td>
-              <!-- editable SP and hidden original_sp for preservation/submit -->
-              <input class="form-control sp-per-batch" name="sp_batch[]" value="{{ '%.2f'|format(item.selling_rate_per_kg) }}">
-              <input type="hidden" name="original_sp[]" class="original-sp" value="{{ '%.2f'|format(item.selling_rate_per_kg) }}">
-            </td>
-
-            <td><button type="button" class="btn btn-sm btn-danger remove-cash-row">−</button></td>
-          </tr>
-          {% endfor %}
-        {% else %}
-          <tr class="cash-row">
-            <td>
-              <select name="bottle_type_id[]" class="form-select bottle-type-select">
-                <option value="">(choose)</option>
-                {% for bt in bottle_types %}
-                  <option value="{{ bt.id }}"
-                          data-cp="{{ '%.2f'|format(bt.cp_per_batch()) }}"
-                          data-sp="{{ '%.2f'|format(bt.sp_per_batch()) }}">
-                    {{ bt.label }} ({{ bt.bottles_in_batch }} per batch)
-                  </option>
-                {% endfor %}
-              </select>
-            </td>
-            <td><input name="batches[]" class="form-control" value="1" required></td>
-            <td><input class="form-control cp-per-batch" readonly></td>
-            <td>
-              <input class="form-control sp-per-batch" name="sp_batch[]">
-              <input type="hidden" name="original_sp[]" class="original-sp" value="">
-            </td>
-            <td><button type="button" class="btn btn-sm btn-danger remove-cash-row">−</button></td>
-          </tr>
-        {% endif %}
-      </tbody>
-    </table>
-</div>
-    <button type="button" id="add-row-cash" class="btn btn-outline-primary btn-sm">Add bottle row</button>
-  </div>
-
-  <!-- Totals -->
-  <div class="col-md-3">
-    <label class="form-label">Freight (₹)</label>
-    <input type="number" step="0.01" min="0" name="freight" id="freight" class="form-control"
-           value="{{ sale.freight if sale else 0 }}" required>
-  </div>
-
-  <div class="col-md-3">
-    <label class="form-label">Total CP (auto)</label>
-    <input type="text" id="total_cp" class="form-control" readonly>
-  </div>
-
-  <div class="col-md-3">
-    <label class="form-label">Total SP (auto)</label>
-    <input type="text" id="total_sp" class="form-control" readonly>
-  </div>
-
-  <div class="col-md-3">
-    <label class="form-label">P / L (auto)</label>
-    <input type="text" id="pl" class="form-control" readonly>
-  </div>
-
-  <!-- Actions -->
-  <div class="col-12">
-    <button class="btn btn-primary">Save</button>
-    <a class="btn btn-secondary" href="{{ url_for('sales_list') }}">Cancel</a>
-  </div>
-</form>
 
 <script src="{{ url_for('static', filename='sales.js') }}"></script>
+
 {% endblock %}

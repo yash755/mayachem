@@ -97,6 +97,17 @@ class Sale(db.Model):
     quantity_kg = db.Column(db.Float, nullable=False, default=0.0, server_default="0.0")
     sale_type = db.Column(db.String(16), nullable=False, default="bill")
 
+    gst_percent = db.Column(db.Float, nullable=False, default=0.0)
+
+    subtotal = db.Column(db.Float, nullable=False, default=0.0)
+    cgst_amount = db.Column(db.Float, nullable=False, default=0.0)
+    sgst_amount = db.Column(db.Float, nullable=False, default=0.0)
+    igst_amount = db.Column(db.Float, nullable=False, default=0.0)
+
+    misc_amount = db.Column(db.Float, nullable=False, default=0.0)
+
+    grand_total = db.Column(db.Float, nullable=False, default=0.0)
+
     items = db.relationship("SaleItem", backref="sale", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
@@ -117,6 +128,8 @@ class Sale(db.Model):
 
     # alias for reports and payments
     def total_amount(self):
+        if self.grand_total and self.grand_total > 0:
+            return round(self.grand_total, 2)
         return self.total_sp()
 
     def pl(self) -> float:
@@ -892,6 +905,7 @@ def register_routes(app: Flask) -> None:
     @app.route("/sales/new", methods=["GET", "POST"])
     @app.route("/sales/<int:sale_id>/edit", methods=["GET", "POST"])
     def sales_form(sale_id=None):
+
         sale = Sale.query.get(sale_id) if sale_id else None
         clients = Client.query.order_by(Client.name.asc()).all()
         bottle_types = BottleType.query.order_by(BottleType.quantity_ltr.asc()).all()
@@ -901,7 +915,9 @@ def register_routes(app: Flask) -> None:
                 date_val = _parse_date(request.form.get("date") or "")
                 sale_type = (request.form.get("sale_type") or "bill").strip().lower()
 
-                # client name
+                # -----------------------------
+                # Client Handling
+                # -----------------------------
                 client_id = request.form.get("client_id")
                 if client_id:
                     found = Client.query.get(int(client_id))
@@ -914,28 +930,39 @@ def register_routes(app: Flask) -> None:
 
                 freight = _to_float(request.form.get("freight"), 0.0)
 
-                # create or update sale
+                # -----------------------------
+                # Create or Update Sale
+                # -----------------------------
                 if not sale:
-                    sale = Sale(date=date_val, client_name=chosen_name, freight=freight, sale_type=sale_type)
+                    sale = Sale(
+                        date=date_val,
+                        client_name=chosen_name,
+                        freight=freight,
+                        sale_type=sale_type
+                    )
                     db.session.add(sale)
                     db.session.flush()
                 else:
                     sale.date = date_val
                     sale.client_name = chosen_name
                     sale.freight = freight
-                    sale.sale_type = sale_type        
+                    sale.sale_type = sale_type
                     SaleItem.query.filter_by(sale_id=sale.id).delete()
 
-                # CASH (bottle mode)
+                # =====================================================
+                # CASH MODE (Bottle)
+                # =====================================================
                 if sale_type == "cash":
+
                     bt_ids = request.form.getlist("bottle_type_id[]")
                     batches_list = request.form.getlist("batches[]")
                     sp_overrides = request.form.getlist("sp_batch[]")
 
-                    total_batches = 0.0
+                    total_batches = 0
                     any_added = False
 
                     for i in range(len(bt_ids)):
+
                         bt_id = (bt_ids[i] or "").strip()
                         if not bt_id:
                             continue
@@ -944,7 +971,10 @@ def register_routes(app: Flask) -> None:
                         if not bt:
                             raise ValueError("Invalid bottle type selected")
 
-                        num_batches = _to_int(batches_list[i] if i < len(batches_list) else 0, 0)
+                        num_batches = _to_int(
+                            batches_list[i] if i < len(batches_list) else 0, 0
+                        )
+
                         if num_batches <= 0:
                             continue
 
@@ -952,18 +982,19 @@ def register_routes(app: Flask) -> None:
                         if submitted_sp and submitted_sp.strip():
                             try:
                                 chosen_sp = float(submitted_sp)
-                            except Exception:
+                            except:
                                 chosen_sp = bt.sp_per_batch()
                         else:
                             chosen_sp = bt.sp_per_batch()
 
                         item = SaleItem(
                             sale_id=sale.id,
-                            bottle_type_id=bt.id,       
+                            bottle_type_id=bt.id,
                             quantity_kg=float(num_batches),
                             cost_rate_per_kg=float(bt.cp_per_batch()),
                             selling_rate_per_kg=float(chosen_sp),
                         )
+
                         db.session.add(item)
                         total_batches += num_batches
                         any_added = True
@@ -973,8 +1004,11 @@ def register_routes(app: Flask) -> None:
 
                     sale.quantity_kg = total_batches
 
-                # BILL (freeform)
+                # =====================================================
+                # BILL MODE (Freeform)
+                # =====================================================
                 else:
+
                     quantities = request.form.getlist("quantity[]")
                     units = request.form.getlist("unit[]")
                     cost_rates = request.form.getlist("cost_rate[]")
@@ -983,10 +1017,15 @@ def register_routes(app: Flask) -> None:
                     if not quantities:
                         raise ValueError("At least one line item is required")
 
-                    total_qty = 0.0
-                    for q_val, u_val, cr, sr in zip(quantities, units, cost_rates, sell_rates):
+                    total_qty = 0
+
+                    for q_val, u_val, cr, sr in zip(
+                        quantities, units, cost_rates, sell_rates
+                    ):
+
                         qty_kg = to_kg(q_val or 0, u_val or "kg")
                         total_qty += qty_kg
+
                         item = SaleItem(
                             sale_id=sale.id,
                             quantity_kg=qty_kg,
@@ -997,50 +1036,63 @@ def register_routes(app: Flask) -> None:
 
                     sale.quantity_kg = total_qty
 
+                # =====================================================
+                # GST + MISC LOGIC (PHASE 2)
+                # =====================================================
+
+                db.session.flush()
+
+
+                gst_percent = _to_float(request.form.get("gst_percent"), 0.0)
+                misc_amount = _to_float(request.form.get("misc_amount"), 0.0)
+
+                subtotal = sale.total_sp()
+                gst_amount = subtotal * gst_percent / 100
+
+                # Assuming intra-state sale (CGST + SGST)
+                cgst = gst_amount / 2
+                sgst = gst_amount / 2
+                igst = 0
+
+                grand_total = subtotal + gst_amount + misc_amount
+
+                sale.gst_percent = gst_percent
+                sale.subtotal = round(subtotal, 2)
+                sale.cgst_amount = round(cgst, 2)
+                sale.sgst_amount = round(sgst, 2)
+                sale.igst_amount = round(igst, 2)
+                sale.misc_amount = round(misc_amount, 2)
+                sale.grand_total = round(grand_total, 2)
+
+                # -----------------------------
                 commit_or_rollback()
                 flash("Saved successfully", "success")
                 return redirect(url_for("sales_list"))
+
             except Exception as exc:
                 db.session.rollback()
                 flash(f"Error: {exc}", "danger")
-
-        # Detect sale_type for edit mode
-
-        if sale and getattr(sale, "sale_type", None):
-            computed_sale_type = sale.sale_type
-        else:
-            # fallback heuristic for very old rows without sale_type
-            computed_sale_type = "bill"
-            if sale and sale.items:
-                def looks_like_bottle(item):
-                    is_int_batches = abs(item.quantity_kg - round(item.quantity_kg)) < 1e-6
-                    cp_match = any(
-                        abs((item.cost_rate_per_kg or 0.0) - bt.cp_per_batch()) < 0.5
-                        for bt in bottle_types
-                    )
-                    return is_int_batches and cp_match
-
-                if all(looks_like_bottle(i) for i in sale.items):
-                    computed_sale_type = "cash"
 
         return render_template(
             "sales_form.html",
             sale=sale,
             clients=clients,
             bottle_types=bottle_types,
-            sale_type=computed_sale_type,
+            sale_type=sale.sale_type if sale else "bill",
         )
 
+    
     @app.route("/sales")
     def sales_list():
-        q = request.args.get("q", "").strip()
+        q_raw = request.args.getlist("q")
+        q_list = [v for v in q_raw if v.strip()]
 
         query = Sale.query
 
         # Apply search filter
-        if q:
+        if q_list:
             query = query.filter(
-                Sale.client_name.ilike(f"%{q}%")
+                Sale.client_name.in_(q_list)
             )
 
         sales = query.order_by(
@@ -1048,10 +1100,13 @@ def register_routes(app: Flask) -> None:
             Sale.id.desc()
         ).all()
 
+        clients = Client.query.order_by(Client.name).all()
+
         return render_template(
             "sales_list.html",
             rows=sales,
-            q=q
+            q_list=q_list,
+            clients=clients
         )
 
     @app.route("/sales/<int:sale_id>/delete", methods=["POST"])
@@ -1067,8 +1122,18 @@ def register_routes(app: Flask) -> None:
 
     @app.route("/purchases")
     def purchases():
-        all_purchases = Purchase.query.order_by(Purchase.date.desc()).all()
-        return render_template("purchases.html", purchases=all_purchases)
+        q_raw = request.args.getlist("q")
+        q_list = [v for v in q_raw if v.strip()]
+
+        query = Purchase.query
+        if q_list:
+            # allow search by multiple vendor names
+            query = query.filter(
+                Purchase.vendor_name.in_(q_list)
+            )
+        all_purchases = query.order_by(Purchase.date.desc()).all()
+        clients = Client.query.order_by(Client.name).all()
+        return render_template("purchases.html", purchases=all_purchases, q_list=q_list, clients=clients)
 
 
 
