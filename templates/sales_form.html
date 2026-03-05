@@ -16,11 +16,11 @@
           <input type="date" name="date" class="form-control" value="{{ sale.date if sale else '' }}" required>
         </div>
 
-        <!-- Sale Type -->
+        <!-- Sale Type   -->
         <div class="col-md-3">
           <label class="form-label fw-semibold">Sale Type</label>
           <select name="sale_type" id="sale_type" class="form-select">
-            <option value="bill" {% if sale_type=='bill' %}selected{% endif %}>Bill</option>
+            <option value="bill" {% if sale_type=='bill' %}selected{% endif %}>Bills</option>
             <option value="cash" {% if sale_type=='cash' %}selected{% endif %}>Cash (bottles)</option>
           </select>
         </div>
