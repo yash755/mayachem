@@ -345,33 +345,7 @@ class Lead(db.Model):
             "indiamart_link": self.indiamart_link,
             "deal_status": self.deal_status,
             "comments": self.comments,
-            "address": self.address,                                # <-- NEW
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
-    def __repr__(self) -> str:
-        return f"<Lead {self.name} @ {self.location_id}>"
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), nullable=False)
-    location_id = db.Column(db.Integer, db.ForeignKey("location.id"), nullable=True)
-    indiamart_link = db.Column(db.String(1024), nullable=True)
-    deal_status = db.Column(db.String(64), nullable=True)
-    comments = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    location = db.relationship("Location", backref=db.backref("leads", cascade="all, delete-orphan"))
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "location_id": self.location_id,
-            "location_name": self.location.name if self.location else None,
-            "indiamart_link": self.indiamart_link,
-            "deal_status": self.deal_status,
-            "comments": self.comments,
-            "address": self.address, 
+            "address": self.address,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
