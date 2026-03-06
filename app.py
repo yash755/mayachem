@@ -118,8 +118,8 @@ class Sale(db.Model):
         return sum((i.quantity_kg or 0.0) for i in self.items)
 
     def total_cp(self) -> float:
+        # User requested raw cost price (cost/kg * quantity)
         total = sum((i.cost_rate_per_kg or 0.0) * (i.quantity_kg or 0.0) for i in self.items)
-        total += (self.freight or 0.0)
         return round(total, 2)
 
     def total_sp(self) -> float:
@@ -133,7 +133,11 @@ class Sale(db.Model):
         return self.total_sp()
 
     def pl(self) -> float:
-        return round(self.total_sp() - self.total_cp(), 2)
+        # P/L = Selling Subtotal - (Raw Cost + Freight + Misc)
+        # Note: Tax is matching so it cancels out for net P/L if items are inclusive/exclusive
+        # but user specifically asked for SP - (total CP + freight + msc)
+        raw_cp = self.total_cp()
+        return round(self.total_sp() - (raw_cp + (self.freight or 0.0) + (self.misc_amount or 0.0)), 2)
 
     def total_received(self):
         return round(sum(p.amount for p in self.payments), 2)
@@ -1028,7 +1032,7 @@ def register_routes(app: Flask) -> None:
                 sgst = gst_amount / 2
                 igst = 0
 
-                grand_total = subtotal + gst_amount + misc_amount
+                grand_total = subtotal + gst_amount
 
                 sale.gst_percent = gst_percent
                 sale.subtotal = round(subtotal, 2)

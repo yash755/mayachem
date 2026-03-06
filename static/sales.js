@@ -66,7 +66,11 @@
         var miscEl = qs("#misc_amount");
         var subtotalEl = qs("#subtotal");
         var gstAmountEl = qs("#gst_amount");
+        var cgstEl = qs("#cgst");
+        var sgstEl = qs("#sgst");
         var grandTotalEl = qs("#grand_total");
+        var summaryFreightEl = qs("#summary_freight");
+        var summaryMiscEl = qs("#summary_misc");
 
         if (!itemsBodyBill || !itemsBodyCash || !saleTypeEl) {
           // Not the page we expect — bail quietly
@@ -85,11 +89,18 @@
           var misc = safeParseFloat(miscEl ? miscEl.value : 0);
 
           var gstAmount = subtotal * gstPercent / 100;
-          var grandTotal = subtotal + gstAmount + misc;
+          var cgst = gstAmount / 2;
+          var sgst = gstAmount / 2;
+          var grandTotal = subtotal + gstAmount;
+          var freight = safeParseFloat(freightEl ? freightEl.value : 0);
 
           if (subtotalEl) subtotalEl.value = subtotal.toFixed(2);
           if (gstAmountEl) gstAmountEl.value = gstAmount.toFixed(2);
+          if (cgstEl) cgstEl.innerText = cgst.toFixed(2);
+          if (sgstEl) sgstEl.innerText = sgst.toFixed(2);
           if (grandTotalEl) grandTotalEl.value = grandTotal.toFixed(2);
+          if (summaryFreightEl) summaryFreightEl.innerText = freight.toFixed(2);
+          if (summaryMiscEl) summaryMiscEl.innerText = misc.toFixed(2);
         }
 
         // Bill totals
@@ -107,11 +118,10 @@
               totalSp += safeParseFloat(sell ? sell.value : 0) * qtyKg;
             });
             var freight = safeParseFloat(freightEl ? freightEl.value : 0);
-            totalCp += freight;
             if (totalCpEl) totalCpEl.value = totalCp.toFixed(2);
             if (totalSpEl) totalSpEl.value = totalSp.toFixed(2);
             var misc = safeParseFloat(miscEl ? miscEl.value : 0);
-            if (plEl) plEl.value = (totalSp - totalCp - misc).toFixed(2);
+            if (plEl) plEl.value = (totalSp - (totalCp + freight + misc)).toFixed(2);
 
             computeGST(totalSp);
           } catch (e) {
@@ -132,11 +142,10 @@
               totalSp += spPerBatch * batches;
             });
             var freight = safeParseFloat(freightEl ? freightEl.value : 0);
-            totalCp += freight;
             if (totalCpEl) totalCpEl.value = totalCp.toFixed(2);
             if (totalSpEl) totalSpEl.value = totalSp.toFixed(2);
             var misc = safeParseFloat(miscEl ? miscEl.value : 0);
-            if (plEl) plEl.value = (totalSp - totalCp - misc).toFixed(2);
+            if (plEl) plEl.value = (totalSp - (totalCp + freight + misc)).toFixed(2);
 
             computeGST(totalSp);
           } catch (e) {
@@ -243,19 +252,19 @@
         function showMode(mode) {
           try {
             if (mode === 'cash') {
-                billModeEl.style.display = 'none';
-                billModeEl.querySelectorAll('input, select').forEach(el => el.removeAttribute('required'));
-                cashModeEl.style.display = '';
-                cashModeEl.querySelectorAll('input, select').forEach(el => {
-                  if (el.name) el.setAttribute('required', 'required');
-                });
+              billModeEl.style.display = 'none';
+              billModeEl.querySelectorAll('input, select').forEach(el => el.removeAttribute('required'));
+              cashModeEl.style.display = '';
+              cashModeEl.querySelectorAll('input, select').forEach(el => {
+                if (el.name) el.setAttribute('required', 'required');
+              });
             } else {
-                cashModeEl.style.display = 'none';
-                cashModeEl.querySelectorAll('input, select').forEach(el => el.removeAttribute('required'));
-                billModeEl.style.display = '';
-                billModeEl.querySelectorAll('input, select').forEach(el => {
-                  if (el.name) el.setAttribute('required', 'required');
-                });
+              cashModeEl.style.display = 'none';
+              cashModeEl.querySelectorAll('input, select').forEach(el => el.removeAttribute('required'));
+              billModeEl.style.display = '';
+              billModeEl.querySelectorAll('input, select').forEach(el => {
+                if (el.name) el.setAttribute('required', 'required');
+              });
             }
             computeAll();
           } catch (e) { logError(e); }
@@ -350,7 +359,7 @@
           console.log('DEBUG: formdata error', e);
         }
         // allow the submit to proceed normally
-      }, {passive: true});
+      }, { passive: true });
     }
     if (saveBtn) {
       saveBtn.addEventListener('click', function () { console.log('DEBUG: Save button clicked'); });

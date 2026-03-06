@@ -35,7 +35,10 @@
       <tr>
         <th>Date</th>
         <th>Client</th>
-        <th class="text-end">Qty</th>
+        <th class="text-end d-none d-md-table-cell">Qty</th>
+        <th class="text-end d-none d-md-table-cell">Total CP</th>
+        <th class="text-end d-none d-md-table-cell">Total SP</th>
+        <th class="text-end">Settlement</th>
         <th class="text-end">P/L</th>
         <th class="text-end">Actions</th>
       </tr>
@@ -45,37 +48,47 @@
       {% if rows %}
       {% for s in rows %}
       <tr>
-        <td>{{ s.date.strftime("%d-%m-%Y") }}</td>
+        <td class="text-nowrap">{{ s.date.strftime("%d-%m-%y") }}</td>
 
-        <td>{{ s.client_name }}</td>
+        <td class="text-truncate" style="max-width: 120px;" title="{{ s.client_name }}">{{ s.client_name }}</td>
 
-        <td class="text-end">
+        <td class="text-end d-none d-md-table-cell">
           {{ "%.0f"|format(s.total_qty) }}
         </td>
 
+        <td class="text-end text-secondary d-none d-md-table-cell">
+          ₹{{ "%.0f"|format(s.total_cp() + (s.freight or 0) + (s.misc_amount or 0)) }}
+        </td>
+
+        <td class="text-end d-none d-md-table-cell">
+          ₹{{ "%.0f"|format(s.total_sp()) }}
+        </td>
+
+        <td class="text-end fw-bold text-primary">
+          ₹{{ "%.0f"|format(s.grand_total) }}
+        </td>
+
         <td class="text-end fw-semibold {% if s.pl() >= 0 %}text-success{% else %}text-danger{% endif %}">
-          ₹ {{ "%.0f"|format(s.pl()) }}
+          ₹{{ "%.0f"|format(s.pl()) }}
         </td>
 
         <td class="text-end text-nowrap">
-
           <a class="btn btn-sm btn-warning" href="{{ url_for('sales_form', sale_id=s.id) }}">
-            Edit
+            <i class="bi bi-pencil-square"></i> Edit
           </a>
 
           <form method="post" action="{{ url_for('sales_delete', sale_id=s.id) }}" style="display:inline;"
             onsubmit="return confirm('Delete this sale?');">
             <button class="btn btn-sm btn-danger">
-              Delete
+              <i class="bi bi-trash"></i> Delete
             </button>
           </form>
-
         </td>
       </tr>
       {% endfor %}
       {% else %}
       <tr>
-        <td colspan="5" class="text-center text-muted">
+        <td colspan="8" class="text-center text-muted">
           No sales found.
         </td>
       </tr>
