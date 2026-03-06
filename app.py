@@ -851,6 +851,19 @@ def register_routes(app: Flask) -> None:
             payments=payments
         )
 
+    @app.route("/sale/payment/<int:payment_id>/delete", methods=["POST"])
+    def delete_sale_payment(payment_id):
+        payment = SalePayment.query.get_or_404(payment_id)
+        sale_id = payment.sale_id
+        try:
+            db.session.delete(payment)
+            db.session.commit()
+            flash("Payment deleted", "info")
+        except Exception as exc:
+            db.session.rollback()
+            flash(f"Error: {exc}", "danger")
+        return redirect(url_for("sale_payments_detail", sale_id=sale_id))
+
     
     @app.route("/reports/sales-outstanding")
     def sales_outstanding_report():
@@ -1363,7 +1376,20 @@ def register_routes(app: Flask) -> None:
             "purchase_payments.html",
             purchase=purchase,
             payments=payments
-    )
+        )
+
+    @app.route("/purchase/payment/<int:payment_id>/delete", methods=["POST"])
+    def delete_purchase_payment(payment_id):
+        payment = PurchasePayment.query.get_or_404(payment_id)
+        purchase_id = payment.purchase_id
+        try:
+            db.session.delete(payment)
+            db.session.commit()
+            flash("Payment deleted", "info")
+        except Exception as exc:
+            db.session.rollback()
+            flash(f"Error: {exc}", "danger")
+        return redirect(url_for("purchase_payments", purchase_id=purchase_id))
 
 
     @app.route("/payments")
