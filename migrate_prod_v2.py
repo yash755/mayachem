@@ -38,23 +38,29 @@ def run_migration():
                 else:
                     print(f"❌ Error adding column {col_name}: {e}")
 
-        # 3. Correct historical Grand Total calculation (Settlement Amount = Subtotal + GST)
+        # 3. Recalculate Subtotal and Grand Total from Line Items
         try:
-            print("📝 Correcting historical settlement totals...")
-            db.session.execute(text("""
-                UPDATE sale 
-                SET grand_total = ROUND(
-                    COALESCE(subtotal, 0) + 
-                    COALESCE(cgst_amount, 0) + 
-                    COALESCE(sgst_amount, 0) + 
-                    COALESCE(igst_amount, 0), 2
-                );
-            """))
+            print("📝 Recalculating settlement totals from line items...")
+            sales = Sale.query.all()
+            updated_count = 0
+            for s in sales:
+                # Use the model's total_sp() method to get the raw revenue
+                raw_revenue = s.total_sp()
+                
+                # Update subtotal if it's missing or if we want to sync it
+                s.subtotal = round(raw_revenue, 2)
+                
+                # Calculate Settlement (Grand Total) = Subtotal + GST
+                gst_total = (s.cgst_amount or 0) + (s.sgst_amount or 0) + (s.igst_amount or 0)
+                s.grand_total = round(s.subtotal + gst_total, 2)
+                
+                updated_count += 1
+            
             db.session.commit()
-            print("✅ Historical records updated successfully.")
+            print(f"✅ Successfully recalculated {updated_count} sales records.")
         except Exception as e:
             db.session.rollback()
-            print(f"❌ Error updating historical records: {e}")
+            print(f"❌ Error during recalculation: {e}")
 
     print("\n🎉 Migration Complete! You can now restart your application.")
 
