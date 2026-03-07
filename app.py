@@ -800,6 +800,7 @@ def register_routes(app: Flask) -> None:
     def sales_payments():
 
         status_filter = request.args.get("status", "pending")  
+        search_query = request.args.get("q", "").strip()
         # default = pending (Unpaid + Partial)
 
         all_sales = Sale.query.order_by(Sale.date.desc()).all()
@@ -820,10 +821,14 @@ def register_routes(app: Flask) -> None:
                 if s.payment_status() in ["Unpaid", "Partial"]
             ]
 
+        if search_query:
+            sales = [s for s in sales if search_query.lower() in (s.client_name or "").lower()]
+
         return render_template(
             "sales_payments.html",
             sales=sales,
-            status_filter=status_filter
+            status_filter=status_filter,
+            search_query=search_query
         )
 
 
@@ -1489,6 +1494,7 @@ def register_routes(app: Flask) -> None:
     def payments_list():
 
         status_filter = request.args.get("status", "pending")  
+        search_query = request.args.get("q", "").strip()
         # default = pending (Unpaid + Partial)
 
         all_purchases = Purchase.query.order_by(Purchase.date.desc()).all()
@@ -1509,10 +1515,14 @@ def register_routes(app: Flask) -> None:
                 if p.payment_status() in ["Unpaid", "Partial"]
             ]
 
+        if search_query:
+            purchases = [p for p in purchases if search_query.lower() in (p.vendor_name or "").lower()]
+
         return render_template(
             "payments_list.html",
             purchases=purchases,
-            status_filter=status_filter
+            status_filter=status_filter,
+            search_query=search_query
         )
 
 
