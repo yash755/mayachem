@@ -54,9 +54,10 @@
         <div class="col-12">
             <label class="form-label">Line Items</label>
 
-            <table class="table table-sm align-middle">
+            <table class="table table-sm align-middle mobile-table">
                 <thead>
                     <tr>
+                        <th>Product / Chemical</th>
                         <th>Quantity (kg)</th>
                         <th>Rate ₹/kg</th>
                         <th width="80"></th>
@@ -68,11 +69,21 @@
                     {% if purchase and purchase.items %}
                     {% for item in purchase.items %}
                     <tr class="item-row">
-                        <td>
+                        <td data-label="Product">
+                            <select name="product_id[]" class="form-select">
+                                <option value="">(none)</option>
+                                {% for p in products %}
+                                <option value="{{ p.id }}" {% if item.product_id==p.id %}selected{% endif %}>
+                                    {{ p.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td data-label="Qty (kg)">
                             <input type="number" step="0.01" name="quantity[]" class="form-control qty"
                                 value="{{ item.quantity_kg }}" required>
                         </td>
-                        <td>
+                        <td data-label="Rate ₹/kg">
                             <input type="number" step="0.01" name="rate[]" class="form-control rate"
                                 value="{{ item.rate_per_kg }}" required>
                         </td>
@@ -83,8 +94,18 @@
                     {% endfor %}
                     {% else %}
                     <tr class="item-row">
-                        <td><input type="number" step="0.01" name="quantity[]" class="form-control qty" required></td>
-                        <td><input type="number" step="0.01" name="rate[]" class="form-control rate" required></td>
+                        <td data-label="Product">
+                            <select name="product_id[]" class="form-select">
+                                <option value="">(none)</option>
+                                {% for p in products %}
+                                <option value="{{ p.id }}">{{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td data-label="Qty (kg)"><input type="number" step="0.01" name="quantity[]"
+                                class="form-control qty" required></td>
+                        <td data-label="Rate ₹/kg"><input type="number" step="0.01" name="rate[]"
+                                class="form-control rate" required></td>
                         <td><button type="button" class="btn btn-sm btn-danger remove-row">−</button></td>
                     </tr>
                     {% endif %}

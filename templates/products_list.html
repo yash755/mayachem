@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Chemical Products{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-box-seam me-2 text-primary"></i>Chemical Products</h3>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductModal">
+            <i class="bi bi-plus-lg me-1"></i> Add New Product
+        </button>
+    </div>
+
+    <div class="row">
+        <div class="col-md-9">
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4">Product Name</th>
+                                    <th class="text-end">Min Stock (kg)</th>
+                                    <th class="text-end">Current Stock (kg)</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-end pe-4">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in products %}
+                                <tr>
+                                    <td class="ps-4 fw-medium">{{ p.name }}</td>
+                                    <td class="text-end text-muted">{{ "%.1f"|format(p.min_stock_kg) }} kg</td>
+                                    <td class="text-end fw-bold">{{ "%.1f"|format(p.current_stock_kg) }} kg</td>
+                                    <td class="text-center">
+                                        {% if p.current_stock_kg <= p.min_stock_kg %} <span
+                                            class="badge bg-danger rounded-pill px-3">Low Stock</span>
+                                            {% else %}
+                                            <span class="badge bg-success rounded-pill px-3">In Stock</span>
+                                            {% endif %}
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <form method="post" action="{{ url_for('delete_product', id=p.id) }}"
+                                            style="display:inline;" onsubmit="return confirm('Delete this product?');">
+                                            <button class="btn btn-sm btn-outline-danger px-2 py-1">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">No chemical products defined
+                                        yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 bg-light p-3">
+                <h6 class="fw-bold mb-3">Inventory Tip</h6>
+                <p class="small text-muted mb-0">Products added here will be used to track batch stocks. When you
+                    purchase chemicals, stock increases. When you sell, it automatically decreases.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Product Modal -->
+<div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form method="post">
+                <div class="modal-header bg-primary text-white border-0">
+                    <h5 class="modal-title fw-bold">Add Chemical Product</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Product Name</label>
+                        <input type="text" name="name" class="form-control" placeholder="e.g. Hydrochloric Acid 33%"
+                            required>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label fw-semibold">Minimum Stock Alert (kg)</label>
+                        <input type="number" step="0.1" name="min_stock" class="form-control" value="0.0">
+                        <div class="form-text">We will alert you if stock falls below this level.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">Create Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

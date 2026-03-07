@@ -3,7 +3,7 @@ import io
 import csv
 import os
 from datetime import datetime, timedelta
-from dateutil import tz
+from zoneinfo import ZoneInfo
 from typing import Optional
 from sqlalchemy import func
 
@@ -177,13 +177,15 @@ class Expense(db.Model):
 class SaleItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(db.Integer, db.ForeignKey("sale.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"), nullable=True)
     bottle_type_id = db.Column(db.Integer, db.ForeignKey("bottle_type.id"), nullable=True) 
     quantity_kg = db.Column(db.Float, nullable=False, default=0.0)  # for bottles = num_batches
     cost_rate_per_kg = db.Column(db.Float, nullable=False, default=0.0)
     selling_rate_per_kg = db.Column(db.Float, nullable=True, default=0.0)
 
     def __repr__(self) -> str:
-        return f"<SaleItem {self.quantity_kg}kg cost={self.cost_rate_per_kg} sp={self.selling_rate_per_kg}>"
+        prod_info = f" product={self.product_id}" if self.product_id else ""
+        return f"<SaleItem {self.quantity_kg}kg cost={self.cost_rate_per_kg} sp={self.selling_rate_per_kg}{prod_info}>"
 
 
 class SalePayment(db.Model):
@@ -271,6 +273,7 @@ class Purchase(db.Model):
 class PurchaseItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     purchase_id = db.Column(db.Integer, db.ForeignKey("purchase.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"), nullable=True)
 
     quantity_kg = db.Column(db.Float, nullable=False, default=0.0)
     rate_per_kg = db.Column(db.Float, nullable=False, default=0.0)
@@ -318,6 +321,19 @@ class BottleType(db.Model):
 
     def sp_per_batch(self) -> float:
         return round(self.selling_price_per_batch or 0.0, 2)
+
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False, unique=True)
+    current_stock_kg = db.Column(db.Float, nullable=False, default=0.0)
+    min_stock_kg = db.Column(db.Float, nullable=False, default=0.0)
+    
+    def change_stock(self, amount):
+        self.current_stock_kg = round((self.current_stock_kg or 0.0) + amount, 2)
+
+    def __repr__(self) -> str:
+        return f"<Product {self.name} {self.current_stock_kg}kg>"
 
 class Location(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -608,9 +624,7 @@ def register_routes(app: Flask) -> None:
         monthly = []
 
         for m in monthly_raw:
-
             ym = m["ym"]
-
             qty = float(m["qty_kg"] or 0)
             sp = float(m["sp"] or 0)
             cp = float(m["cp"] or 0)
@@ -620,7 +634,7 @@ def register_routes(app: Flask) -> None:
             gross_pl = sp - (cp + freight)
             net_pl = gross_pl - expense
 
-            monthly.append({
+            monthly.insert(0, { # Insert at 0 to get chronological order for charts
                 "ym": ym,
                 "qty_kg": qty,
                 "sp": sp,
@@ -629,6 +643,16 @@ def register_routes(app: Flask) -> None:
                 "expense": round(expense, 2),
                 "pl": round(net_pl, 2)
             })
+
+        # Top 5 Clients by Revenue for Chart
+        client_stats = {}
+        for s in Sale.query.all():
+            name = s.client_name
+            client_stats[name] = client_stats.get(name, 0) + s.total_sp()
+        
+        top_clients = sorted(client_stats.items(), key=lambda x: x[1], reverse=True)[:5]
+        chart_labels = [c[0] for c in top_clients]
+        chart_values = [round(c[1], 2) for c in top_clients]
 
         # --------------------------------------------------
         # CURRENT MONTH DATA
@@ -717,7 +741,9 @@ def register_routes(app: Flask) -> None:
             total_purchase_pending=total_purchase_pending,
             total_expense=round(total_expense, 2),
             total_profit=net_profit,
-            gross_profit=gross_profit
+            gross_profit=gross_profit,
+            chart_labels=json.dumps(chart_labels),
+            chart_values=json.dumps(chart_values)
         )
 
     # Clients
@@ -900,6 +926,7 @@ def register_routes(app: Flask) -> None:
         sale = Sale.query.get(sale_id) if sale_id else None
         clients = Client.query.order_by(Client.name.asc()).all()
         bottle_types = BottleType.query.order_by(BottleType.quantity_ltr.asc()).all()
+        hcl_products = Product.query.order_by(Product.name).all()
 
         if request.method == "POST":
             try:
@@ -938,6 +965,14 @@ def register_routes(app: Flask) -> None:
                     sale.client_name = chosen_name
                     sale.freight = freight
                     sale.sale_type = sale_type
+                    
+                    # Reverse stock for old items
+                    for old_item in sale.items:
+                        if old_item.product_id:
+                            prod = Product.query.get(old_item.product_id)
+                            if prod:
+                                prod.change_stock(old_item.quantity_kg)
+
                     SaleItem.query.filter_by(sale_id=sale.id).delete()
 
                 # =====================================================
@@ -1004,15 +1039,19 @@ def register_routes(app: Flask) -> None:
                     units = request.form.getlist("unit[]")
                     cost_rates = request.form.getlist("cost_rate[]")
                     sell_rates = request.form.getlist("sell_rate[]")
+                    prod_ids_bill = request.form.getlist("product_id[]")
 
                     if not quantities:
                         raise ValueError("At least one line item is required")
 
                     total_qty = 0
 
-                    for q_val, u_val, cr, sr in zip(
-                        quantities, units, cost_rates, sell_rates
-                    ):
+                    for i in range(len(quantities)):
+                        q_val = quantities[i]
+                        u_val = units[i] if i < len(units) else "kg"
+                        cr = cost_rates[i] if i < len(cost_rates) else 0.0
+                        sr = sell_rates[i] if i < len(sell_rates) else 0.0
+                        p_id = prod_ids_bill[i] if i < len(prod_ids_bill) else ""
 
                         qty_kg = to_kg(q_val or 0, u_val or "kg")
                         total_qty += qty_kg
@@ -1022,8 +1061,15 @@ def register_routes(app: Flask) -> None:
                             quantity_kg=qty_kg,
                             cost_rate_per_kg=_to_float(cr, 0.0),
                             selling_rate_per_kg=_to_float(sr, 0.0),
+                            product_id=int(p_id) if (p_id and p_id.strip()) else None
                         )
                         db.session.add(item)
+                        
+                        # Decrement stock if product linked
+                        if item.product_id:
+                            prod = Product.query.get(item.product_id)
+                            if prod:
+                                prod.change_stock(-qty_kg)
 
                     sale.quantity_kg = total_qty
 
@@ -1069,6 +1115,7 @@ def register_routes(app: Flask) -> None:
             sale=sale,
             clients=clients,
             bottle_types=bottle_types,
+            hcl_products=hcl_products,
             sale_type=sale.sale_type if sale else "bill",
         )
 
@@ -1104,6 +1151,13 @@ def register_routes(app: Flask) -> None:
     def sales_delete(sale_id):
         sale = Sale.query.get_or_404(sale_id)
         try:
+            # Reverse stock
+            for item in sale.items:
+                if item.product_id:
+                    prod = Product.query.get(item.product_id)
+                    if prod:
+                        prod.change_stock(item.quantity_kg)
+
             db.session.delete(sale)
             commit_or_rollback()
             flash("Deleted", "info")
@@ -1133,6 +1187,7 @@ def register_routes(app: Flask) -> None:
     def new_purchase():
 
         clients = Client.query.order_by(Client.name).all()
+        products = Product.query.order_by(Product.name).all()
 
         if request.method == "POST":
 
@@ -1167,22 +1222,33 @@ def register_routes(app: Flask) -> None:
                 # -----------------------------
                 qty_list = request.form.getlist("quantity[]")
                 rate_list = request.form.getlist("rate[]")
+                prod_id_list = request.form.getlist("product_id[]")
 
                 subtotal = 0
 
-                for q, r in zip(qty_list, rate_list):
+                for i in range(min(len(qty_list), len(rate_list))):
+                    q = qty_list[i]
+                    r = rate_list[i]
+                    p_id = prod_id_list[i] if i < len(prod_id_list) else ""
+
                     if q and r:
                         qty = float(q)
                         rate = float(r)
-
                         subtotal += qty * rate
 
                         item = PurchaseItem(
                             purchase_id=purchase.id,
                             quantity_kg=qty,
-                            rate_per_kg=rate
+                            rate_per_kg=rate,
+                            product_id=int(p_id) if (p_id and p_id.strip()) else None
                         )
                         db.session.add(item)
+                        
+                        # Increment stock if product linked
+                        if item.product_id:
+                            prod = Product.query.get(item.product_id)
+                            if prod:
+                                prod.change_stock(qty)
 
                 # Add freight to subtotal
                 subtotal += freight
@@ -1219,14 +1285,16 @@ def register_routes(app: Flask) -> None:
         return render_template(
             "purchase_form.html",
             clients=clients,
+            products=products,
             purchase=None
-        )       
+        )
 
     @app.route("/purchase/<int:purchase_id>/edit", methods=["GET", "POST"])
     def edit_purchase(purchase_id):
 
         purchase = Purchase.query.get_or_404(purchase_id)
         clients = Client.query.order_by(Client.name).all()
+        products = Product.query.order_by(Product.name).all()
 
         if request.method == "POST":
 
@@ -1253,30 +1321,47 @@ def register_routes(app: Flask) -> None:
                 purchase.gst_percent = float(request.form.get("gst_percent") or 0)
 
                 # -----------------------------
-                # Delete Old Line Items
+                # Delete Old Line Items & Reverse Stock
                 # -----------------------------
+                for old_item in purchase.items:
+                    if old_item.product_id:
+                        prod = Product.query.get(old_item.product_id)
+                        if prod:
+                            prod.change_stock(-old_item.quantity_kg)
+
                 PurchaseItem.query.filter_by(purchase_id=purchase.id).delete()
 
                 qty_list = request.form.getlist("quantity[]")
                 rate_list = request.form.getlist("rate[]")
+                prod_id_list = request.form.getlist("product_id[]")
 
                 subtotal = 0
 
                 # -----------------------------
-                # Re-add Line Items
+                # Re-add Line Items & Apply Stock
                 # -----------------------------
-                for q, r in zip(qty_list, rate_list):
+                for i in range(min(len(qty_list), len(rate_list))):
+                    q = qty_list[i]
+                    r = rate_list[i]
+                    p_id = prod_id_list[i] if i < len(prod_id_list) else ""
+
                     if q and r:
                         qty = float(q)
                         rate = float(r)
-
                         subtotal += qty * rate
 
-                        db.session.add(PurchaseItem(
+                        new_item = PurchaseItem(
                             purchase_id=purchase.id,
                             quantity_kg=qty,
-                            rate_per_kg=rate
-                        ))
+                            rate_per_kg=rate,
+                            product_id=int(p_id) if (p_id and p_id.strip()) else None
+                        )
+                        db.session.add(new_item)
+                        
+                        if new_item.product_id:
+                            prod = Product.query.get(new_item.product_id)
+                            if prod:
+                                prod.change_stock(qty)
 
                 # Add freight
                 subtotal += purchase.freight
@@ -1313,7 +1398,8 @@ def register_routes(app: Flask) -> None:
         return render_template(
             "purchase_form.html",
             purchase=purchase,
-            clients=clients
+            clients=clients,
+            products=products
         )
 
 
@@ -1321,6 +1407,13 @@ def register_routes(app: Flask) -> None:
     def delete_purchase(purchase_id):
 
         purchase = Purchase.query.get_or_404(purchase_id)
+
+        # Reverse stock
+        for item in purchase.items:
+            if item.product_id:
+                prod = Product.query.get(item.product_id)
+                if prod:
+                    prod.change_stock(-item.quantity_kg)
 
         db.session.delete(purchase)
         db.session.commit()
@@ -1464,6 +1557,152 @@ def register_routes(app: Flask) -> None:
             client_report=client_report
         )
 
+    @app.route("/reports/profitability")
+    def party_profitability():
+        sales = Sale.query.all()
+        report = {}
+        
+        for s in sales:
+            client = s.client_name
+            if client not in report:
+                report[client] = {
+                    "revenue": 0,
+                    "cost": 0,
+                    "profit": 0,
+                    "qty": 0
+                }
+            
+            revenue = s.total_sp()
+            # Loaded Cost = Item Cost + Freight + Misc
+            cost = s.total_cp() + (s.freight or 0) + (s.misc_amount or 0)
+            
+            report[client]["revenue"] += revenue
+            report[client]["cost"] += cost
+            report[client]["profit"] += (revenue - cost)
+            report[client]["qty"] += s.total_qty
+            
+        # Add margin percentage
+        for client in report:
+            rev = report[client]["revenue"]
+            profit = report[client]["profit"]
+            report[client]["margin_pct"] = (profit / rev * 100) if rev != 0 else 0
+
+        # Sort by profit descending
+        sorted_report = dict(sorted(report.items(), key=lambda x: x[1]['profit'], reverse=True))
+
+        return render_template("party_profitability_report.html", report=sorted_report)
+
+    @app.route("/reports/payment-aging")
+    def payment_aging():
+        sales = Sale.query.all()
+        today = datetime.now().date()
+        
+        buckets = {
+            "0-15 Days": {"amount": 0, "count": 0},
+            "16-30 Days": {"amount": 0, "count": 0},
+            "31+ Days": {"amount": 0, "count": 0}
+        }
+        
+        detail_list = []
+        
+        for s in sales:
+            balance = s.balance_due()
+            if balance > 0:
+                age = (today - s.date).days
+                if age <= 15:
+                    bucket = "0-15 Days"
+                elif age <= 30:
+                    bucket = "16-30 Days"
+                else:
+                    bucket = "31+ Days"
+                
+                buckets[bucket]["amount"] += balance
+                buckets[bucket]["count"] += 1
+                
+                detail_list.append({
+                    "id": s.id,
+                    "date": s.date,
+                    "client": s.client_name,
+                    "balance": balance,
+                    "age": age,
+                    "bucket": bucket
+                })
+        
+        # Sort details by age descending
+        detail_list.sort(key=lambda x: x['age'], reverse=True)
+        
+        total_outstanding = sum(b["amount"] for b in buckets.values())
+        
+        # Add percentages
+        for b in buckets:
+            amt = buckets[b]["amount"]
+            buckets[b]["pct"] = (amt / total_outstanding * 100) if total_outstanding > 0 else 0
+
+        return render_template("payment_aging_report.html", 
+                               buckets=buckets, 
+                               details=detail_list,
+                               total_outstanding=total_outstanding)
+
+    @app.route("/reports/expense-analysis")
+    def expense_analysis():
+        expenses = Expense.query.all()
+        
+        report = {}
+        total_amount = 0
+        
+        for e in expenses:
+            cat = e.category
+            if cat not in report:
+                report[cat] = {
+                    "amount": 0,
+                    "count": 0
+                }
+            
+            report[cat]["amount"] += e.amount
+            report[cat]["count"] += 1
+            total_amount += e.amount
+            
+        # Add percentages and format
+        for cat in report:
+            amt = report[cat]["amount"]
+            report[cat]["pct"] = (amt / total_amount * 100) if total_amount > 0 else 0
+            
+        # Sort by amount descending
+        sorted_report = dict(sorted(report.items(), key=lambda x: x[1]['amount'], reverse=True))
+
+        return render_template("expense_analysis_report.html", 
+                               report=sorted_report, 
+                               total_amount=total_amount)
+
+    # Products & Stock
+    @app.route("/products", methods=["GET", "POST"])
+    def products_list():
+        if request.method == "POST":
+            name = request.form.get("name")
+            min_stock = float(request.form.get("min_stock") or 0)
+            if name:
+                p = Product(name=name, min_stock_kg=min_stock)
+                db.session.add(p)
+                db.session.commit()
+                flash(f"Product {name} added", "success")
+            return redirect(url_for("products_list"))
+        
+        products = Product.query.order_by(Product.name.asc()).all()
+        return render_template("products_list.html", products=products)
+
+    @app.route("/product/<int:id>/delete", methods=["POST"])
+    def delete_product(id):
+        p = Product.query.get_or_404(id)
+        db.session.delete(p)
+        db.session.commit()
+        flash("Product deleted", "info")
+        return redirect(url_for("products_list"))
+
+    @app.route("/reports/stock")
+    def stock_report():
+        products = Product.query.all()
+        return render_template("stock_report.html", products=products)
+
     # Reports & Export
     @app.route("/reports")
     def reports():
@@ -1534,7 +1773,7 @@ def register_routes(app: Flask) -> None:
         mem = io.BytesIO()
         mem.write(output.getvalue().encode("utf-8"))
         mem.seek(0)
-        fname = f"hcl_sales_export_{datetime.now(tz=tz.gettz('Asia/Kolkata')).strftime('%Y%m%d_%H%M%S')}.csv"
+        fname = f"hcl_sales_export_{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y%m%d_%H%M%S')}.csv"
         return send_file(mem, as_attachment=True, download_name=fname, mimetype="text/csv")
 
     # Bottle types

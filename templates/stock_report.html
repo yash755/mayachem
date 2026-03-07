@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Chemical Stock Ledger{% endblock %}
+
+{% block content %}
+<div class="container-fluid text-dark">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-stack me-2 text-primary"></i>Stock Ledger</h3>
+        <a href="{{ url_for('products_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-gear-fill me-1"></i> Manage Products
+        </a>
+    </div>
+
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Product Name</th>
+                            <th class="text-end">Current Stock (kg)</th>
+                            <th class="text-end">Alert Level</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-end pe-4">Stock Value (Estimated)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in products %}
+                        <tr>
+                            <td class="ps-4 fw-medium">{{ p.name }}</td>
+                            <td class="text-end fs-5 fw-bold">{{ "%.1f"|format(p.current_stock_kg) }} kg</td>
+                            <td class="text-end text-muted">{{ "%.1f"|format(p.min_stock_kg) }} kg</td>
+                            <td class="text-center">
+                                {% if p.current_stock_kg <= p.min_stock_kg %} <span
+                                    class="badge bg-danger rounded-pill px-3 shadow-sm py-2">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Low Stock
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-success rounded-pill px-3 shadow-sm py-2">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Sufficient Stock
+                                    </span>
+                                    {% endif %}
+                            </td>
+                            <td class="text-end pe-4 text-muted small">
+                                Calculates based on latest purchase price
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">No products found. Please define
+                                products first.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

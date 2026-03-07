@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Expense Breakdown Analysis{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Expense Analysis</h3>
+        <a href="{{ url_for('outstanding_report') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to Reports
+        </a>
+    </div>
+
+    <!-- Total Spending Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-5 p-4 bg-dark text-white">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h6 class="text-uppercase opacity-50 small fw-bold">Grand Total Expenditure</h6>
+                <h1 class="display-5 fw-bold mb-0">₹{{ "%.0f"|format(total_amount) }}</h1>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <div class="badge bg-primary px-4 py-2 rounded-pill mt-3 mt-md-0">
+                    <i class="bi bi-lightning-fill me-1"></i> Optimized Overheads
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Category Table -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100 rounded-3">
+                <div class="card-header bg-white py-3 border-0">
+                    <h5 class="mb-0 fw-bold">Spending by Category</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4">Category</th>
+                                    <th class="text-center">Transactions</th>
+                                    <th class="text-end">Amount Paid</th>
+                                    <th class="text-end pe-4">Share (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cat, data in report.items() %}
+                                <tr>
+                                    <td class="ps-4 fw-medium">{{ cat }}</td>
+                                    <td class="text-center"><span class="badge bg-light text-dark border">{{ data.count
+                                            }}</span></td>
+                                    <td class="text-end fw-bold">₹{{ "%.0f"|format(data.amount) }}</td>
+                                    <td class="text-end pe-4">
+                                        <div class="d-flex align-items-center justify-content-end">
+                                            <div class="progress flex-grow-1 me-3 d-none d-md-flex"
+                                                style="height: 6px; width: 60px;">
+                                                <div class="progress-bar bg-primary" role="progressbar"
+                                                    style="width: {{ data.pct }}%"></div>
+                                            </div>
+                                            <span class="small fw-bold">{{ "%.1f"|format(data.pct) }}%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">No expenses recorded for
+                                        analysis.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expense Insights -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 rounded-3 mb-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">Spending Logic</h5>
+                    <p class="text-muted small">This report analyzes your operating overheads (fixed and variable) to
+                        identify where the most cash is leaving the business.</p>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-3 d-flex align-items-center">
+                            <div class="icon-box bg-success-subtle text-success rounded p-2 me-3"><i
+                                    class="bi bi-lightning"></i></div>
+                            <div>
+                                <small class="text-muted d-block">Largest Pocket</small>
+                                <strong class="d-block">{{ (report.keys()|first) if report else 'None' }}</strong>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <a href="{{ url_for('expenses_list') }}" class="btn btn-primary w-100 py-3 rounded-3 fw-bold shadow-sm">
+                View All Expense Slips <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .icon-box {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+{% endblock %}

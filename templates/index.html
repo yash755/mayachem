@@ -69,49 +69,49 @@
 <!-- CURRENT MONTH -->
 <!-- ===================== -->
 <div class="card shadow-sm mb-4">
-<div class="card-header fw-bold">
-📅 Current Month ({{ current_data.ym }})
-</div>
-
-<div class="card-body">
-<div class="row text-center">
-
-  <div class="col-md-2">
-    <small>Qty</small>
-    <h5>{{ current_data.qty }} kg</h5>
+  <div class="card-header fw-bold">
+    📅 Current Month ({{ current_data.ym }})
   </div>
 
-  <div class="col-md-2">
-    <small>Sales</small>
-    <h5>₹ {{ current_data.sp }}</h5>
-  </div>
+  <div class="card-body">
+    <div class="row text-center">
 
-  <div class="col-md-2">
-    <small>Cost</small>
-    <h5>₹ {{ current_data.cp }}</h5>
-  </div>
+      <div class="col-md-2">
+        <small>Qty</small>
+        <h5>{{ current_data.qty }} kg</h5>
+      </div>
 
-  <div class="col-md-2">
-    <small>Freight</small>
-    <h5>₹ {{ current_data.freight }}</h5>
-  </div>
+      <div class="col-md-2">
+        <small>Sales</small>
+        <h5>₹ {{ current_data.sp }}</h5>
+      </div>
 
-  <div class="col-md-2">
-    <small>Expense</small>
-    <h5 class="text-danger">
-      ₹ {{ current_data.expense }}
-    </h5>
-  </div>
+      <div class="col-md-2">
+        <small>Cost</small>
+        <h5>₹ {{ current_data.cp }}</h5>
+      </div>
 
-  <div class="col-md-2">
-    <small>Net P/L</small>
-    <h5 class="{% if current_data.pl >=0 %}text-success{% else %}text-danger{% endif %}">
-      ₹ {{ current_data.pl }}
-    </h5>
-  </div>
+      <div class="col-md-2">
+        <small>Freight</small>
+        <h5>₹ {{ current_data.freight }}</h5>
+      </div>
 
-</div>
-</div>
+      <div class="col-md-2">
+        <small>Expense</small>
+        <h5 class="text-danger">
+          ₹ {{ current_data.expense }}
+        </h5>
+      </div>
+
+      <div class="col-md-2">
+        <small>Net P/L</small>
+        <h5 class="{% if current_data.pl >=0 %}text-success{% else %}text-danger{% endif %}">
+          ₹ {{ current_data.pl }}
+        </h5>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 
@@ -120,44 +120,44 @@
 <!-- ===================== -->
 <div class="card shadow-sm mb-4">
 
-<div class="card-header fw-bold">
-📈 Monthly Performance
-</div>
+  <div class="card-header fw-bold">
+    📈 Monthly Performance
+  </div>
 
-<div class="table-responsive">
-<table class="table table-striped mb-0">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
 
-<thead class="table-dark">
-<tr>
-<th>Month</th>
-<th>Qty (kg)</th>
-<th>Sales</th>
-<th>Cost</th>
-<th>Freight</th>
-<th>Expense</th>
-<th>Net Profit</th>
-</tr>
-</thead>
+      <thead class="table-dark">
+        <tr>
+          <th>Month</th>
+          <th>Qty (kg)</th>
+          <th>Sales</th>
+          <th>Cost</th>
+          <th>Freight</th>
+          <th>Expense</th>
+          <th>Net Profit</th>
+        </tr>
+      </thead>
 
-<tbody>
-{% for m in monthly %}
-<tr>
-<td>{{ m.ym }}</td>
-<td>{{ m.qty_kg }}</td>
-<td>₹ {{ m.sp }}</td>
-<td>₹ {{ m.cp }}</td>
-<td>₹ {{ m.freight }}</td>
-<td class="text-danger">₹ {{ m.expense }}</td>
+      <tbody>
+        {% for m in monthly %}
+        <tr>
+          <td>{{ m.ym }}</td>
+          <td>{{ m.qty_kg }}</td>
+          <td>₹ {{ m.sp }}</td>
+          <td>₹ {{ m.cp }}</td>
+          <td>₹ {{ m.freight }}</td>
+          <td class="text-danger">₹ {{ m.expense }}</td>
 
-<td class="{% if m.pl >=0 %}text-success{% else %}text-danger{% endif %}">
-₹ {{ m.pl }}
-</td>
-</tr>
-{% endfor %}
-</tbody>
+          <td class="{% if m.pl >=0 %}text-success{% else %}text-danger{% endif %}">
+            ₹ {{ m.pl }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
 
-</table>
-</div>
+    </table>
+  </div>
 </div>
 
 
@@ -166,33 +166,33 @@
 <!-- ===================== -->
 <div class="card shadow-sm">
 
-<div class="card-header fw-bold">
-🧾 Latest Sales
-</div>
+  <div class="card-header fw-bold">
+    🧾 Latest Sales
+  </div>
 
-<div class="table-responsive">
-<table class="table table-sm table-hover mb-0">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
 
-<thead class="table-light">
-<tr>
-<th>Date</th>
-<th>Client</th>
-<th>Qty</th>
-<th>Total</th>
-<th>Status</th>
-</tr>
-</thead>
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Client</th>
+          <th>Qty</th>
+          <th>Total</th>
+          <th>Status</th>
+        </tr>
+      </thead>
 
-<tbody>
-{% for s in latest %}
-<tr>
-<td>{{ s.date }}</td>
-<td>{{ s.client_name }}</td>
-<td>{{ s.total_qty }}</td>
-<td>₹ {{ s.total_amount() }}</td>
+      <tbody>
+        {% for s in latest %}
+        <tr>
+          <td>{{ s.date }}</td>
+          <td>{{ s.client_name }}</td>
+          <td>{{ s.total_qty }}</td>
+          <td>₹ {{ s.total_amount() }}</td>
 
-<td>
-<span class="badge
+          <td>
+            <span class="badge
 {% if s.payment_status()=='Paid' %}
 bg-success
 {% elif s.payment_status()=='Partial' %}
@@ -201,17 +201,126 @@ bg-warning
 bg-danger
 {% endif %}
 ">
-{{ s.payment_status() }}
-</span>
-</td>
+              {{ s.payment_status() }}
+            </span>
+          </td>
 
-</tr>
-{% endfor %}
-</tbody>
+        </tr>
+        {% endfor %}
+      </tbody>
 
-</table>
+    </table>
+  </div>
+
 </div>
 
+
+<!-- ===================== -->
+<!-- CHARTS SECTION -->
+<!-- ===================== -->
+<div class="row g-4 mb-5 mt-2">
+  <div class="col-lg-8">
+    <div class="card shadow-sm border-0 h-100 rounded-4 p-4">
+      <h5 class="fw-bold mb-4 text-dark"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Revenue vs Expenses
+        (Trend)</h5>
+      <div style="height: 300px;">
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card shadow-sm border-0 h-100 rounded-4 p-4 text-center">
+      <h5 class="fw-bold mb-4 text-dark"><i class="bi bi-pie-chart-fill me-2 text-success"></i>Revenue Distribution</h5>
+      <div class="d-flex justify-content-center align-items-center" style="height: 300px;">
+        <canvas id="clientChart"></canvas>
+      </div>
+    </div>
+  </div>
 </div>
 
-{% endblock %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // 1. Revenue vs Expense Chart
+    new Chart(document.getElementById('revenueChart'), {
+      type: 'line',
+      data: {
+        labels: [{% for m in monthly %}"{{ m.ym }}"{% if not loop.last %}, {% endif %}{% endfor %}],
+    datasets: [
+    {
+      label: 'Revenue',
+      data: [{% for m in monthly %}{{ m.sp }}{% if not loop.last %}, {% endif %} {% endfor %}],
+  borderColor: '#0d6efd',
+    backgroundColor: 'rgba(13, 110, 253, 0.08)',
+      borderWidth: 3,
+        fill: true,
+          tension: 0.4,
+            pointRadius: 4,
+              pointBackgroundColor: '#fff',
+                pointBorderColor: '#0d6efd'
+          },
+  {
+    label: 'Expenses',
+      data: [{% for m in monthly %} { { m.expense } } {% if not loop.last %}, {% endif %} {% endfor %}],
+  borderColor: '#dc3545',
+    backgroundColor: 'rgba(220, 53, 69, 0.08)',
+      borderWidth: 3,
+        fill: true,
+          tension: 0.4,
+            pointRadius: 4,
+              pointBackgroundColor: '#fff',
+                pointBorderColor: '#dc3545'
+          }
+        ]
+      },
+  options: {
+    responsive: true,
+      maintainAspectRatio: false,
+        plugins: {
+      legend: {
+        position: 'bottom',
+          labels: { usePointStyle: true, padding: 20 }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+          grid: { color: 'rgba(0,0,0,0.05)' }
+      },
+      x: {
+        grid: { display: false }
+      }
+    }
+  }
+    });
+
+  // 2. Top Clients Chart
+  new Chart(document.getElementById('clientChart'), {
+    type: 'doughnut',
+    data: {
+      labels: {{ chart_labels | safe }},
+    datasets: [{
+      data: {{ chart_values | safe }},
+    backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#0dcaf0', '#6610f2'],
+    hoverOffset: 12,
+    borderWidth: 0
+        }]
+      },
+    options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '70%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          boxWidth: 10,
+          usePointStyle: true,
+          font: { size: 12 },
+          padding: 15
+        }
+      }
+    }
+  }
+    });
+  });
+</script>{% endblock %}
