@@ -709,7 +709,7 @@ def register_routes(app: Flask) -> None:
             total_qty=round(total_qty, 2),
             total_cp=total_cost_base,
             total_sp=total_sales_base,
-            total_pl=total_net_profit,
+            total_profit=total_net_profit,
             total_freight=round(total_freight, 2),
 
             latest=latest,
@@ -719,8 +719,6 @@ def register_routes(app: Flask) -> None:
             total_sale_pending=total_sale_pending,
             total_purchase_pending=total_purchase_pending,
             total_expense=round(total_expense, 2),
-            total_profit=net_profit,
-            gross_profit=gross_profit,
             chart_labels=json.dumps(chart_labels),
             chart_values=json.dumps(chart_values)
         )
