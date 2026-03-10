@@ -220,6 +220,7 @@ class Purchase(db.Model):
     grand_total = db.Column(db.Float, nullable=False, default=0.0)
 
     items = db.relationship("PurchaseItem", backref="purchase", cascade="all, delete-orphan")
+    payments = db.relationship("PurchasePayment", backref="purchase_ref", cascade="all, delete-orphan")
 
     def total_cost(self):
         # If GST-based total exists, use it
@@ -291,10 +292,7 @@ class PurchasePayment(db.Model):
     date = db.Column(db.Date, nullable=False)
     amount = db.Column(db.Float, nullable=False)
 
-    mode = db.Column(db.String(50))   # Cash / Bank / UPI
     notes = db.Column(db.String(250))
-
-    purchase = db.relationship("Purchase", backref="payments")
 
 
 
