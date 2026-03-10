@@ -101,11 +101,12 @@
   <script>
     $(document).ready(function () {
       $('.select2-multi').select2({
-        placeholder: $(this).data('placeholder'),
+        theme: 'bootstrap-5',
         width: '100%'
       });
     });
   </script>
+  {% block scripts %}{% endblock %}
 </body>
 
 </html>

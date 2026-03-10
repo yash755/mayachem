@@ -53,32 +53,35 @@
     </div>
 </div>
 
+{% block scripts %}
 <script>
-$(document).ready(function() {
-    $('.select2-multi').select2({
-        theme: 'bootstrap-5',
-        width: '100%',
-        placeholder: $(this).data('placeholder'),
-        allowClear: true
-    });
-});
-
 document.getElementById('ledgerForm').onsubmit = function(e) {
     e.preventDefault();
-    const type = document.getElementById('partyType').value;
-    const select = document.getElementById('partyName');
-    const selected = Array.from(select.selectedOptions).map(opt => opt.value);
-    
-    if (selected.length > 0) {
-        // If multiple selected, pass them as a comma-separated string or handle in backend
-        // For simplicity, if one is selected, use standard URL, else use a query param
-        if (selected.length === 1) {
-            window.location.href = `/ledger/${type}/${encodeURIComponent(selected[0])}`;
-        } else {
-            const names = selected.map(n => encodeURIComponent(n)).join(',');
-            window.location.href = `/ledger/${type}/${names}?multi=1`;
+    try {
+        const type = document.getElementById('partyType').value;
+        const select = document.getElementById('partyName');
+        const selected = [];
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].selected) {
+                selected.push(select.options[i].value);
+            }
         }
+        
+        if (selected.length > 0) {
+            if (selected.length === 1) {
+                window.location.href = "{{ url_for('ledger_list') }}/" + type + "/" + encodeURIComponent(selected[0]);
+            } else {
+                const names = selected.map(function(n) { return encodeURIComponent(n); }).join(',');
+                window.location.href = "{{ url_for('ledger_list') }}/" + type + "/" + names + "?multi=1";
+            }
+        } else {
+            alert("Please select at least one party.");
+        }
+    } catch (err) {
+        console.error(err);
+        // Fallback or alert if needed
     }
 };
 </script>
+{% endblock %}
 {% endblock %}
