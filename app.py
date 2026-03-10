@@ -109,6 +109,7 @@ class Sale(db.Model):
     grand_total = db.Column(db.Float, nullable=False, default=0.0)
 
     items = db.relationship("SaleItem", backref="sale", cascade="all, delete-orphan")
+    payments = db.relationship("SalePayment", backref="sale_ref", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Sale {self.id} {self.date} {self.client_name}>"
@@ -203,8 +204,6 @@ class SalePayment(db.Model):
 
     mode = db.Column(db.String(50))   # Cash / Bank / UPI
     notes = db.Column(db.String(250))
-
-    sale = db.relationship("Sale", backref="payments")
 
 
 class Purchase(db.Model):
