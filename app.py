@@ -580,6 +580,7 @@ def register_routes(app: Flask) -> None:
 
         total_qty = float(totals["total_qty"] or 0)
         total_sp_sql = float(totals["total_sp"] or 0)
+        total_cp_sql = float(totals["total_cp"] or 0)
         total_freight = float(totals["total_freight"] or 0)
 
         # --------------------------------------------------
@@ -689,34 +690,14 @@ def register_routes(app: Flask) -> None:
             func.sum(Expense.amount)
         ).scalar() or 0
 
-        # ✅ GST-inclusive purchase cost
-        total_purchase_cost = round(
-            sum(p.total_cost() for p in purchases),
-            2
-        )
+        total_sale_pending = round(sum(s.balance_due() for s in sales), 2)
+        total_purchase_pending = round(sum(p.balance_due() for p in purchases), 2)
 
-        total_sales_amount = round(
-            sum(s.total_amount() for s in sales),
-            2
-        )
-
-        total_sale_pending = round(
-            sum(s.balance_due() for s in sales),
-            2
-        )
-
-        total_purchase_pending = round(
-            sum(p.balance_due() for p in purchases),
-            2
-        )
-
-        gross_profit = round(
-            total_sales_amount - total_purchase_cost,
-            2
-        )
-
-        net_profit = round(
-            gross_profit - total_expense,
+        # ✅ Standardized Accounting (Sales - (Cost + Freight + Expense))
+        total_sales_base = round(total_sp_sql, 2)
+        total_cost_base = round(total_cp_sql, 2)
+        total_net_profit = round(
+            total_sales_base - (total_cost_base + total_freight + total_expense),
             2
         )
 
@@ -726,9 +707,9 @@ def register_routes(app: Flask) -> None:
         return render_template(
             "index.html",
             total_qty=round(total_qty, 2),
-            total_cp=total_purchase_cost,
-            total_sp=round(total_sales_amount, 2),
-            total_pl=net_profit,
+            total_cp=total_cost_base,
+            total_sp=total_sales_base,
+            total_pl=total_net_profit,
             total_freight=round(total_freight, 2),
 
             latest=latest,
