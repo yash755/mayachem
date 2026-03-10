@@ -182,6 +182,7 @@ class SaleItem(db.Model):
     quantity_kg = db.Column(db.Float, nullable=False, default=0.0)  # for bottles = num_batches
     cost_rate_per_kg = db.Column(db.Float, nullable=False, default=0.0)
     selling_rate_per_kg = db.Column(db.Float, nullable=True, default=0.0)
+    gst_percent = db.Column(db.Float, nullable=False, default=0.0, server_default="0.0")
 
     def __repr__(self) -> str:
         prod_info = f" product={self.product_id}" if self.product_id else ""
@@ -799,36 +800,31 @@ def register_routes(app: Flask) -> None:
     @app.route("/sales-payments")
     def sales_payments():
 
-        status_filter = request.args.get("status", "pending")  
-        search_query = request.args.get("q", "").strip()
-        # default = pending (Unpaid + Partial)
+        status_filter = request.args.get("status", "pending")
+        q_list = [v for v in request.args.getlist("q") if v.strip()]
 
         all_sales = Sale.query.order_by(Sale.date.desc()).all()
 
         if status_filter == "paid":
             sales = [s for s in all_sales if s.payment_status() == "Paid"]
-
         elif status_filter == "unpaid":
             sales = [s for s in all_sales if s.payment_status() == "Unpaid"]
-
         elif status_filter == "partial":
             sales = [s for s in all_sales if s.payment_status() == "Partial"]
-
         else:
-            # default: unpaid + partial
-            sales = [
-                s for s in all_sales
-                if s.payment_status() in ["Unpaid", "Partial"]
-            ]
+            sales = [s for s in all_sales if s.payment_status() in ["Unpaid", "Partial"]]
 
-        if search_query:
-            sales = [s for s in sales if search_query.lower() in (s.client_name or "").lower()]
+        if q_list:
+            sales = [s for s in sales if s.client_name in q_list]
+
+        clients = Client.query.order_by(Client.name).all()
 
         return render_template(
             "sales_payments.html",
             sales=sales,
             status_filter=status_filter,
-            search_query=search_query
+            q_list=q_list,
+            clients=clients
         )
 
 
@@ -988,9 +984,11 @@ def register_routes(app: Flask) -> None:
                     bt_ids = request.form.getlist("bottle_type_id[]")
                     batches_list = request.form.getlist("batches[]")
                     sp_overrides = request.form.getlist("sp_batch[]")
+                    gst_percents_cash = request.form.getlist("gst_percent_cash[]")
 
                     total_batches = 0
                     any_added = False
+                    total_gst_val = 0.0
 
                     for i in range(len(bt_ids)):
 
@@ -1024,7 +1022,9 @@ def register_routes(app: Flask) -> None:
                             quantity_kg=float(num_batches),
                             cost_rate_per_kg=float(bt.cp_per_batch()),
                             selling_rate_per_kg=float(chosen_sp),
+                            gst_percent=_to_float(gst_percents_cash[i] if i < len(gst_percents_cash) else 0, 0.0)
                         )
+                        total_gst_val += (item.selling_rate_per_kg * item.quantity_kg) * (item.gst_percent / 100.0)
 
                         db.session.add(item)
                         total_batches += num_batches
@@ -1045,11 +1045,13 @@ def register_routes(app: Flask) -> None:
                     cost_rates = request.form.getlist("cost_rate[]")
                     sell_rates = request.form.getlist("sell_rate[]")
                     prod_ids_bill = request.form.getlist("product_id[]")
+                    gst_percents_bill = request.form.getlist("gst_percent[]")
 
                     if not quantities:
                         raise ValueError("At least one line item is required")
 
                     total_qty = 0
+                    total_gst_val = 0.0
 
                     for i in range(len(quantities)):
                         q_val = quantities[i]
@@ -1066,8 +1068,10 @@ def register_routes(app: Flask) -> None:
                             quantity_kg=qty_kg,
                             cost_rate_per_kg=_to_float(cr, 0.0),
                             selling_rate_per_kg=_to_float(sr, 0.0),
-                            product_id=int(p_id) if (p_id and p_id.strip()) else None
+                            product_id=int(p_id) if (p_id and p_id.strip()) else None,
+                            gst_percent=_to_float(gst_percents_bill[i] if i < len(gst_percents_bill) else 0, 0.0)
                         )
+                        total_gst_val += (item.selling_rate_per_kg * item.quantity_kg) * (item.gst_percent / 100.0)
                         db.session.add(item)
                         
                         # Decrement stock if product linked
@@ -1084,12 +1088,9 @@ def register_routes(app: Flask) -> None:
 
                 db.session.flush()
 
-
-                gst_percent = _to_float(request.form.get("gst_percent"), 0.0)
                 misc_amount = _to_float(request.form.get("misc_amount"), 0.0)
-
                 subtotal = sale.total_sp()
-                gst_amount = subtotal * gst_percent / 100
+                gst_amount = total_gst_val
 
                 # Assuming intra-state sale (CGST + SGST)
                 cgst = gst_amount / 2
@@ -1098,7 +1099,7 @@ def register_routes(app: Flask) -> None:
 
                 grand_total = subtotal + gst_amount
 
-                sale.gst_percent = gst_percent
+                sale.gst_percent = 0.0 # Deprecated global field
                 sale.subtotal = round(subtotal, 2)
                 sale.cgst_amount = round(cgst, 2)
                 sale.sgst_amount = round(sgst, 2)
@@ -1493,36 +1494,31 @@ def register_routes(app: Flask) -> None:
     @app.route("/payments")
     def payments_list():
 
-        status_filter = request.args.get("status", "pending")  
-        search_query = request.args.get("q", "").strip()
-        # default = pending (Unpaid + Partial)
+        status_filter = request.args.get("status", "pending")
+        q_list = [v for v in request.args.getlist("q") if v.strip()]
 
         all_purchases = Purchase.query.order_by(Purchase.date.desc()).all()
 
         if status_filter == "paid":
             purchases = [p for p in all_purchases if p.payment_status() == "Paid"]
-
         elif status_filter == "unpaid":
             purchases = [p for p in all_purchases if p.payment_status() == "Unpaid"]
-
         elif status_filter == "partial":
             purchases = [p for p in all_purchases if p.payment_status() == "Partial"]
-
         else:
-            # default pending
-            purchases = [
-                p for p in all_purchases
-                if p.payment_status() in ["Unpaid", "Partial"]
-            ]
+            purchases = [p for p in all_purchases if p.payment_status() in ["Unpaid", "Partial"]]
 
-        if search_query:
-            purchases = [p for p in purchases if search_query.lower() in (p.vendor_name or "").lower()]
+        if q_list:
+            purchases = [p for p in purchases if p.vendor_name in q_list]
+
+        clients = Client.query.order_by(Client.name).all()
 
         return render_template(
             "payments_list.html",
             purchases=purchases,
             status_filter=status_filter,
-            search_query=search_query
+            q_list=q_list,
+            clients=clients
         )
 
 

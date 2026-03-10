@@ -5,42 +5,50 @@
    <h3>Payments Overview</h3>
 </div>
 
+<form class="row g-2 mb-3 align-items-center" method="get" action="{{ url_for('payments_list') }}">
+   <input type="hidden" name="status" value="{{ status_filter }}">
+   <div class="col-12 col-md-6">
+      <select class="form-select select2-multi" name="q" multiple data-placeholder="Select Vendors...">
+         {% for client in clients %}
+         <option value="{{ client.name }}" {% if client.name in q_list %}selected{% endif %}>
+            {{ client.name }}
+         </option>
+         {% endfor %}
+      </select>
+   </div>
+   <div class="col-12 col-md-auto d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1 flex-md-grow-0" type="submit">
+         <i class="bi bi-search"></i> Search
+      </button>
+      {% if q_list %}
+      <a href="{{ url_for('payments_list', status=status_filter) }}" class="btn btn-outline-danger">Clear</a>
+      {% endif %}
+   </div>
+</form>
+
 <div class="mb-3">
 
-   <a href="{{ url_for('payments_list', status='pending', q=search_query) }}"
+   <a href="{{ url_for('payments_list', status='pending', **{'q': q_list}) }}"
       class="btn btn-sm {{ 'btn-primary' if status_filter=='pending' else 'btn-outline-primary' }}">
       Pending
    </a>
 
-   <a href="{{ url_for('payments_list', status='unpaid', q=search_query) }}"
+   <a href="{{ url_for('payments_list', status='unpaid', **{'q': q_list}) }}"
       class="btn btn-sm {{ 'btn-primary' if status_filter=='unpaid' else 'btn-outline-primary' }}">
       Unpaid
    </a>
 
-   <a href="{{ url_for('payments_list', status='partial', q=search_query) }}"
+   <a href="{{ url_for('payments_list', status='partial', **{'q': q_list}) }}"
       class="btn btn-sm {{ 'btn-primary' if status_filter=='partial' else 'btn-outline-primary' }}">
       Partial
    </a>
 
-   <a href="{{ url_for('payments_list', status='paid', q=search_query) }}"
+   <a href="{{ url_for('payments_list', status='paid', **{'q': q_list}) }}"
       class="btn btn-sm {{ 'btn-primary' if status_filter=='paid' else 'btn-outline-primary' }}">
       Paid
    </a>
 
 </div>
-
-<form method="get" action="{{ url_for('payments_list') }}" class="mb-3">
-   <input type="hidden" name="status" value="{{ status_filter }}">
-   <div class="input-group input-group-sm" style="max-width:400px;">
-      <input type="text" name="q" class="form-control" placeholder="Search vendor name..." value="{{ search_query }}">
-      <button class="btn btn-outline-primary" type="submit">
-         <i class="bi bi-search"></i> Search
-      </button>
-      {% if search_query %}
-      <a href="{{ url_for('payments_list', status=status_filter) }}" class="btn btn-outline-secondary">Clear</a>
-      {% endif %}
-   </div>
-</form>
 
 
 <div class="table-responsive">

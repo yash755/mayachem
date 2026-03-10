@@ -84,17 +84,16 @@
           return q;
         }
 
-        function computeGST(subtotal) {
-          var gstPercent = safeParseFloat(gstPercentEl ? gstPercentEl.value : 0);
+        function computeGST(totalSp, totalGst) {
           var misc = safeParseFloat(miscEl ? miscEl.value : 0);
 
-          var gstAmount = subtotal * gstPercent / 100;
+          var gstAmount = totalGst;
           var cgst = gstAmount / 2;
           var sgst = gstAmount / 2;
-          var grandTotal = subtotal + gstAmount;
+          var grandTotal = totalSp + gstAmount;
           var freight = safeParseFloat(freightEl ? freightEl.value : 0);
 
-          if (subtotalEl) subtotalEl.value = subtotal.toFixed(2);
+          if (subtotalEl) subtotalEl.value = totalSp.toFixed(2);
           if (gstAmountEl) gstAmountEl.value = gstAmount.toFixed(2);
           if (cgstEl) cgstEl.innerText = cgst.toFixed(2);
           if (sgstEl) sgstEl.innerText = sgst.toFixed(2);
@@ -107,15 +106,21 @@
         function computeBillTotals() {
           try {
             var rows = qsa(".item-row", itemsBodyBill);
-            var totalCp = 0, totalSp = 0;
+            var totalCp = 0, totalSp = 0, totalGst = 0;
             rows.forEach(function (r) {
               var qty = qs('input[name="quantity[]"]', r);
               var unit = qs('select[name="unit[]"]', r);
               var cost = qs('input[name="cost_rate[]"]', r);
               var sell = qs('input[name="sell_rate[]"]', r);
+              var gst = qs('.gst-percent-select', r);
+              
               var qtyKg = qtyToKg(qty ? qty.value : 0, unit ? unit.value : "kg");
+              var rowSp = safeParseFloat(sell ? sell.value : 0) * qtyKg;
+              var rowGstPercent = safeParseFloat(gst ? gst.value : 0);
+              
               totalCp += safeParseFloat(cost ? cost.value : 0) * qtyKg;
-              totalSp += safeParseFloat(sell ? sell.value : 0) * qtyKg;
+              totalSp += rowSp;
+              totalGst += rowSp * rowGstPercent / 100;
             });
             var freight = safeParseFloat(freightEl ? freightEl.value : 0);
             if (totalCpEl) totalCpEl.value = totalCp.toFixed(2);
@@ -123,7 +128,7 @@
             var misc = safeParseFloat(miscEl ? miscEl.value : 0);
             if (plEl) plEl.value = (totalSp - (totalCp + freight + misc)).toFixed(2);
 
-            computeGST(totalSp);
+            computeGST(totalSp, totalGst);
           } catch (e) {
             logError(e);
           }
@@ -133,13 +138,18 @@
         function computeCashTotals() {
           try {
             var rows = qsa(".cash-row", itemsBodyCash);
-            var totalCp = 0, totalSp = 0;
+            var totalCp = 0, totalSp = 0, totalGst = 0;
             rows.forEach(function (r) {
               var batches = safeParseFloat(qs('input[name="batches[]"]', r) ? qs('input[name="batches[]"]', r).value : 0);
               var cpPerBatch = safeParseFloat(qs('.cp-per-batch', r) ? qs('.cp-per-batch', r).value : 0);
               var spPerBatch = safeParseFloat(qs('.sp-per-batch', r) ? qs('.sp-per-batch', r).value : 0);
+              var gst = qs('.gst-percent-select', r);
+              var rowGstPercent = safeParseFloat(gst ? gst.value : 0);
+              
+              var rowSp = spPerBatch * batches;
               totalCp += cpPerBatch * batches;
-              totalSp += spPerBatch * batches;
+              totalSp += rowSp;
+              totalGst += rowSp * rowGstPercent / 100;
             });
             var freight = safeParseFloat(freightEl ? freightEl.value : 0);
             if (totalCpEl) totalCpEl.value = totalCp.toFixed(2);
@@ -147,21 +157,40 @@
             var misc = safeParseFloat(miscEl ? miscEl.value : 0);
             if (plEl) plEl.value = (totalSp - (totalCp + freight + misc)).toFixed(2);
 
-            computeGST(totalSp);
+            computeGST(totalSp, totalGst);
           } catch (e) {
             logError(e);
           }
         }
 
         // Create bill row (clone or build safe)
-        function makeBillRow(q, unit, cost, sell) {
+        function makeBillRow(q, unit, cost, sell, prod_id, gst_val) {
           q = q === undefined ? "" : q;
           unit = unit || "kg";
           cost = cost === undefined ? "" : cost;
           sell = sell === undefined ? "" : sell;
+          prod_id = prod_id || "";
+          gst_val = gst_val === undefined ? "18" : gst_val;
+          
           var tr = document.createElement("tr");
           tr.className = "item-row";
+          
+          // Product select
+          var prodTemplate = qs('.product-select-template');
+          var prodSelect = prodTemplate ? prodTemplate.cloneNode(true) : document.createElement('select');
+          prodSelect.name = 'product_id[]';
+          prodSelect.className = 'form-select';
+          prodSelect.value = prod_id;
+
+          // GST select
+          var gstTemplate = qs('.gst-percent-template');
+          var gstSelect = gstTemplate ? gstTemplate.cloneNode(true) : document.createElement('select');
+          gstSelect.name = 'gst_percent[]';
+          gstSelect.className = 'form-select gst-percent-select';
+          gstSelect.value = gst_val;
+
           tr.innerHTML = "" +
+            '<td class="prod-cell"></td>' +
             '<td><input name="quantity[]" class="form-control" value="' + (q) + '"></td>' +
             '<td><select name="unit[]" class="form-select">' +
             '<option value="kg"' + (unit === "kg" ? " selected" : "") + '>kg</option>' +
@@ -169,7 +198,12 @@
             '</select></td>' +
             '<td><input name="cost_rate[]" class="form-control" value="' + (cost) + '"></td>' +
             '<td><input name="sell_rate[]" class="form-control" value="' + (sell) + '"></td>' +
+            '<td class="gst-cell"></td>' +
             '<td><button type="button" class="btn btn-sm btn-danger remove-row">−</button></td>';
+          
+          tr.querySelector('.prod-cell').appendChild(prodSelect);
+          tr.querySelector('.gst-cell').appendChild(gstSelect);
+
           itemsBodyBill.appendChild(tr);
           qsa('input,select', tr).forEach(function (el) { el.addEventListener('input', computeBillTotals); });
           var rem = qs('.remove-row', tr);
@@ -206,9 +240,19 @@
               '<td><input name="batches[]" class="form-control" value="' + batches + '"></td>' +
               '<td><input class="form-control cp-per-batch" readonly value="' + cp + '"></td>' +
               '<td><input class="form-control sp-per-batch" name="sp_batch[]" value="' + sp + '"></td>' +
+              '<td class="gst-cell"></td>' +
               '<td><button type="button" class="btn btn-sm btn-danger remove-cash-row">−</button></td>';
             var cell = qs('.select-cell', tr);
             if (cell) cell.appendChild(selectNode);
+            
+            // GST select
+            var gstTemplate = qs('.gst-percent-template');
+            var gstSelect = gstTemplate ? gstTemplate.cloneNode(true) : document.createElement('select');
+            gstSelect.name = 'gst_percent_cash[]';
+            gstSelect.className = 'form-select gst-percent-select';
+            gstSelect.value = "18";
+            tr.querySelector('.gst-cell').appendChild(gstSelect);
+
             itemsBodyCash.appendChild(tr);
             var spBatchEl = qs('.sp-per-batch', tr);
             if (spBatchEl) spBatchEl.addEventListener('input', computeCashTotals);
@@ -280,7 +324,7 @@
         });
 
         // bill add
-        if (addRowBillBtn) addRowBillBtn.addEventListener('click', function () { makeBillRow('', 'kg', '', ''); computeBillTotals(); });
+        if (addRowBillBtn) addRowBillBtn.addEventListener('click', function () { makeBillRow('', 'kg', '', '', '', '18'); computeBillTotals(); });
 
         // wire existing cash rows selects
         qsa('.bottle-type-select').forEach(function (sel) {

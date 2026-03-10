@@ -53,27 +53,36 @@
             value="{{ sale.misc_amount if sale else 0 }}" required>
         </div>
 
-        <div class="col-md-3">
-          <label class="form-label">GST %</label>
-          <select name="gst_percent" id="gst_percent" class="form-select">
-            {% for g in [0, 4, 5, 12, 18, 28] %}
-            <option value="{{ g }}" {% if sale and sale.gst_percent==g %}selected{% elif not sale and g==18 %}selected{%
-              endif %}>
-              {{ g }}%
-            </option>
-            {% endfor %}
+        <div class="col-md-3 d-none">
+          <label class="form-label">Global GST % (Deprecated)</label>
+          <select name="gst_percent_global" id="gst_percent" class="form-select">
+            <option value="0" selected>0%</option>
           </select>
         </div>
 
-        <!-- Hidden template select used by JS when creating cash rows -->
+        <!-- Hidden templates for JS -->
         <div style="display:none;">
-          <select class="form-select bottle-type-select">
+          <!-- Bottle Type Template -->
+          <select class="form-select bottle-type-select-template">
             <option value="">(choose)</option>
             {% for bt in bottle_types %}
             <option value="{{ bt.id }}" data-cp="{{ '%.2f'|format(bt.cp_per_batch()) }}"
               data-sp="{{ '%.2f'|format(bt.sp_per_batch()) }}">
               {{ bt.label }} ({{ bt.bottles_in_batch }} per batch)
             </option>
+            {% endfor %}
+          </select>
+          <!-- Product Template -->
+          <select class="form-select product-select-template">
+            <option value="">(none)</option>
+            {% for p in hcl_products %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+          <!-- GST Template -->
+          <select class="form-select gst-percent-template">
+            {% for g in [0, 5, 12, 18, 28] %}
+            <option value="{{ g }}" {% if g==18 %}selected{% endif %}>{{ g }}%</option>
             {% endfor %}
           </select>
         </div>
@@ -90,6 +99,7 @@
                   <th>Unit</th>
                   <th>Cost ₹/kg</th>
                   <th>Sell ₹/kg</th>
+                  <th>GST %</th>
                   <th></th>
                 </tr>
               </thead>
@@ -119,6 +129,13 @@
                       value="{{ '%.2f'|format(item.cost_rate_per_kg) }}" required></td>
                   <td data-label="Sell ₹/kg"><input name="sell_rate[]" class="form-control"
                       value="{{ '%.2f'|format(item.selling_rate_per_kg) }}" required></td>
+                  <td data-label="GST %">
+                    <select name="gst_percent[]" class="form-select gst-percent-select">
+                      {% for g in [0, 5, 12, 18, 28] %}
+                      <option value="{{ g }}" {% if item.gst_percent==g %}selected{% endif %}>{{ g }}%</option>
+                      {% endfor %}
+                    </select>
+                  </td>
                   <td><button type="button" class="btn btn-sm btn-danger remove-row">−</button></td>
                 </tr>
                 {% endfor %}
@@ -141,6 +158,13 @@
                   </td>
                   <td data-label="Cost ₹/kg"><input name="cost_rate[]" class="form-control" required></td>
                   <td data-label="Sell ₹/kg"><input name="sell_rate[]" class="form-control" required></td>
+                  <td data-label="GST %">
+                    <select name="gst_percent[]" class="form-select gst-percent-select">
+                      {% for g in [0, 5, 12, 18, 28] %}
+                      <option value="{{ g }}" {% if g==18 %}selected{% endif %}>{{ g }}%</option>
+                      {% endfor %}
+                    </select>
+                  </td>
                   <td><button type="button" class="btn btn-sm btn-danger remove-row">−</button></td>
                 </tr>
                 {% endif %}
@@ -161,6 +185,7 @@
                   <th>Batches</th>
                   <th>CP / batch (₹)</th>
                   <th>SP / batch (₹)</th>
+                  <th>GST %</th>
                   <th></th>
                 </tr>
               </thead>
@@ -200,7 +225,13 @@
                     <input type="hidden" name="original_sp[]" class="original-sp"
                       value="{{ '%.2f'|format(item.selling_rate_per_kg) }}">
                   </td>
-
+                  <td data-label="GST %">
+                    <select name="gst_percent_cash[]" class="form-select gst-percent-select">
+                      {% for g in [0, 5, 12, 18, 28] %}
+                      <option value="{{ g }}" {% if item.gst_percent==g %}selected{% endif %}>{{ g }}%</option>
+                      {% endfor %}
+                    </select>
+                  </td>
                   <td><button type="button" class="btn btn-sm btn-danger remove-cash-row">−</button></td>
                 </tr>
                 {% endfor %}
@@ -222,6 +253,13 @@
                   <td data-label="SP / batch (₹)">
                     <input class="form-control sp-per-batch" name="sp_batch[]">
                     <input type="hidden" name="original_sp[]" class="original-sp" value="">
+                  </td>
+                  <td data-label="GST %">
+                    <select name="gst_percent_cash[]" class="form-select gst-percent-select">
+                      {% for g in [0, 5, 12, 18, 28] %}
+                      <option value="{{ g }}" {% if g==18 %}selected{% endif %}>{{ g }}%</option>
+                      {% endfor %}
+                    </select>
                   </td>
                   <td><button type="button" class="btn btn-sm btn-danger remove-cash-row">−</button></td>
                 </tr>
