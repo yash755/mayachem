@@ -48,7 +48,11 @@
       {% for s in rows %}
       <tr>
         <td class="ps-3 text-nowrap">{{ s.date.strftime("%d-%m-%y") }}</td>
-        <td class="fw-medium">{{ s.client_name }}</td>
+        <td class="fw-medium">
+          <a href="{{ url_for('party_ledger', party_type='client', name=s.client_name) }}" class="text-decoration-none" title="View Ledger">
+            {{ s.client_name }}
+          </a>
+        </td>
         <td class="text-end text-muted">{{ "%.0f"|format(s.total_qty) }} <small>kg</small></td>
         <td class="text-end fw-bold text-primary">₹ {{ "%.0f"|format(s.total_amount()) }}</td>
         <td class="text-end fw-semibold {% if s.pl() >= 0 %}text-success{% else %}text-danger{% endif %}">
@@ -83,7 +87,11 @@
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-start mb-2">
         <div>
-          <h6 class="fw-bold mb-0 text-dark">{{ s.client_name }}</h6>
+          <h6 class="fw-bold mb-0 text-dark">
+            <a href="{{ url_for('party_ledger', party_type='client', name=s.client_name) }}" class="text-decoration-none">
+              {{ s.client_name }}
+            </a>
+          </h6>
           <small class="text-muted"><i class="bi bi-calendar3 me-1"></i> {{ s.date.strftime("%d %b, %Y") }}</small>
         </div>
         <div class="text-end">

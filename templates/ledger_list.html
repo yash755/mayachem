@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4 text-center bg-primary text-white rounded">
+                <h3 class="mb-2">Party Ledger Search</h3>
+                <p class="mb-0 opacity-75">View detailed statement of account for any Client or Vendor</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <form id="ledgerForm" class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Select Party Type</label>
+                        <select id="partyType" class="form-select border-2">
+                            <option value="client">Client (Sales)</option>
+                            <option value="vendor">Vendor (Purchases)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Select Party/Parties</label>
+                        <select id="partyName" class="form-select border-2 select2-multi" multiple data-placeholder="Select Names...">
+                            {% for c in clients %}
+                            <option value="{{ c.name }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">View</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="mb-0 fw-bold">Quick Links: Recent Clients</h5>
+            </div>
+            <div class="list-group list-group-flush border-0">
+                {% for c in clients[:10] %}
+                <a href="{{ url_for('party_ledger', party_type='client', name=c.name) }}" class="list-group-item list-group-item-action py-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-person-circle me-2 text-primary"></i>
+                        {{ c.name }}
+                    </div>
+                    <i class="bi bi-chevron-right text-muted small"></i>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('.select2-multi').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: $(this).data('placeholder'),
+        allowClear: true
+    });
+});
+
+document.getElementById('ledgerForm').onsubmit = function(e) {
+    e.preventDefault();
+    const type = document.getElementById('partyType').value;
+    const select = document.getElementById('partyName');
+    const selected = Array.from(select.selectedOptions).map(opt => opt.value);
+    
+    if (selected.length > 0) {
+        // If multiple selected, pass them as a comma-separated string or handle in backend
+        // For simplicity, if one is selected, use standard URL, else use a query param
+        if (selected.length === 1) {
+            window.location.href = `/ledger/${type}/${encodeURIComponent(selected[0])}`;
+        } else {
+            const names = selected.map(n => encodeURIComponent(n)).join(',');
+            window.location.href = `/ledger/${type}/${names}?multi=1`;
+        }
+    }
+};
+</script>
+{% endblock %}

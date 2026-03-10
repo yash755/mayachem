@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>{{ party_type }} Ledger: {{ name }}</h3>
+    <div>
+        <button class="btn btn-outline-primary d-print-none" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print Statement
+        </button>
+        <a href="{{ url_for('ledger_list') }}" class="btn btn-secondary d-print-none">Back to Search</a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-light border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase fw-bold">Total Billed</div>
+                <h4 class="mb-0">₹{{ "{:,.2f}".format(total_billed) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase fw-bold">Total Paid</div>
+                <h4 class="mb-0">₹{{ "{:,.2f}".format(total_paid) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card {{ 'bg-danger text-white' if net_balance > 0 else 'bg-success text-white' }} border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-opacity-75 small text-uppercase fw-bold">Net Balance Due</div>
+                <h4 class="mb-0">₹{{ "{:,.2f}".format(net_balance) }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Date</th>
+                        {% if is_multi %}
+                        <th>Party</th>
+                        {% endif %}
+                        <th>Description</th>
+                        <th class="text-end">Debit (₹)</th>
+                        <th class="text-end">Credit (₹)</th>
+                        <th class="text-end pe-4">Balance (₹)</th>
+                    </tr>
+                </thead>
+            <tbody>
+                {% if not transactions %}
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-muted">No transactions found for this party.</td>
+                </tr>
+                {% endif %}
+                {% for t in transactions %}
+                <tr>
+                    <td class="ps-4 text-nowrap">
+                        {% if t.date %}
+                        {{ t.date.strftime('%d-%m-%y') }}
+                        {% else %}
+                        <span class="text-muted small">Opening</span>
+                        {% endif %}
+                    </td>
+                    {% if is_multi %}
+                    <td class="fw-bold text-primary small">{{ t.party_name }}</td>
+                    {% endif %}
+                    <td>
+                        {% if t.ref %}
+                        <a href="{{ t.ref }}" class="text-decoration-none">{{ t.desc }}</a>
+                        {% else %}
+                        {{ t.desc }}
+                        {% endif %}
+                    </td>
+                    <td class="text-end {{ 'text-danger fw-bold' if t.debit > 0 else 'text-muted' }}">
+                        {{ "₹{:,.2f}".format(t.debit) if t.debit > 0 else '-' }}
+                    </td>
+                    <td class="text-end {{ 'text-success fw-bold' if t.credit > 0 else 'text-muted' }}">
+                        {{ "₹{:,.2f}".format(t.credit) if t.credit > 0 else '-' }}
+                    </td>
+                    <td class="text-end fw-bold">₹{{ "{:,.2f}".format(t.balance) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+@media print {
+    .btn, .d-print-none { display: none !important; }
+    .card { border: none !important; box-shadow: none !important; }
+    .table-dark { background-color: #fff !important; color: #000 !important; }
+    .table-responsive { overflow: visible !important; }
+}
+</style>
+{% endblock %}

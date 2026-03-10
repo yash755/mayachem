@@ -84,6 +84,7 @@ class Client(db.Model):
     name = db.Column(db.String(160), nullable=False, unique=True)
     address = db.Column(db.Text, nullable=True)
     gst = db.Column(db.String(32), nullable=True)
+    opening_balance = db.Column(db.Float, nullable=False, default=0.0)
 
     def __repr__(self) -> str:
         return f"<Client {self.name}>"
@@ -743,17 +744,19 @@ def register_routes(app: Flask) -> None:
             name = (request.form.get("name") or "").strip()
             address = (request.form.get("address") or "").strip()
             gst = (request.form.get("gst") or "").strip().upper()
+            opening_balance = _to_float(request.form.get("opening_balance"), 0.0)
             if not name:
                 flash("Client name is required", "danger")
                 return render_template("clients_form.html", client=client)
             try:
                 if not client:
-                    client = Client(name=name, address=address, gst=gst)
+                    client = Client(name=name, address=address, gst=gst, opening_balance=opening_balance)
                     db.session.add(client)
                 else:
                     client.name = name
                     client.address = address
                     client.gst = gst
+                    client.opening_balance = opening_balance
                 commit_or_rollback()
                 flash("Client saved", "success")
                 return redirect(url_for("clients_list"))
@@ -868,6 +871,119 @@ def register_routes(app: Flask) -> None:
         return redirect(url_for("sale_payments_detail", sale_id=sale_id))
 
     
+    @app.route("/ledger")
+    def ledger_list():
+        # Just a redirect or a simple search page for parties
+        q = (request.args.get("q") or "").strip()
+        clients = Client.query.order_by(Client.name).all()
+        return render_template("ledger_list.html", clients=clients, q=q)
+
+    @app.route("/ledger/<party_type>/<path:name>")
+    def party_ledger(party_type, name):
+        # name can be a single name or a comma-separated list
+        is_multi = request.args.get("multi") == "1"
+        names = name.split(",") if is_multi else [name]
+        
+        transactions = []
+        total_billed = 0
+        total_paid = 0
+        display_name = ", ".join(names) if len(names) > 1 else names[0]
+
+        for n in names:
+            n = n.strip()
+            # 1. Opening Balance
+            client_obj = Client.query.filter_by(name=n).first()
+            opening_bal = client_obj.opening_balance if client_obj else 0.0
+            
+            if opening_bal != 0:
+                transactions.append({
+                    "date": None,
+                    "desc": f"Opening Balance ({n})" if is_multi else "Opening Balance",
+                    "ref": "",
+                    "debit": opening_bal if opening_bal > 0 else 0,
+                    "credit": abs(opening_bal) if opening_bal < 0 else 0,
+                    "party_name": n
+                })
+
+            if party_type == "client":
+                sales = Sale.query.filter_by(client_name=n).all()
+                for s in sales:
+                    amt = s.total_amount()
+                    total_billed += amt
+                    transactions.append({
+                        "date": s.date,
+                        "desc": f"Sale #{s.id} ({n})" if is_multi else f"Sale Invoice #{s.id}",
+                        "ref": f"/sales/{s.id}/edit",
+                        "debit": amt,
+                        "credit": 0,
+                        "id_for_sort": s.id,
+                        "party_name": n
+                    })
+                    for p in s.payments:
+                        total_paid += p.amount
+                        transactions.append({
+                            "date": p.date,
+                            "desc": f"Payment Recd (Inv #{s.id})",
+                            "ref": f"/sale/{s.id}/payments",
+                            "debit": 0,
+                            "credit": p.amount,
+                            "id_for_sort": p.id,
+                            "party_name": n
+                        })
+            else: # vendor
+                purchases = Purchase.query.filter_by(vendor_name=n).all()
+                for p_rec in purchases:
+                    cost = p_rec.total_cost()
+                    total_billed += cost
+                    transactions.append({
+                        "date": p_rec.date,
+                        "desc": f"Purchase #{p_rec.id} ({n})" if is_multi else f"Purchase Invoice #{p_rec.id}",
+                        "ref": f"/purchase/{p_rec.id}/edit",
+                        "debit": 0,
+                        "credit": cost,
+                        "id_for_sort": p_rec.id,
+                        "party_name": n
+                    })
+                    for pay in p_rec.payments:
+                        total_paid += pay.amount
+                        transactions.append({
+                            "date": pay.date,
+                            "desc": f"Payment Paid (Inv #{p_rec.id})",
+                            "ref": f"/purchase/{p_rec.id}/payments",
+                            "debit": pay.amount,
+                            "credit": 0,
+                            "id_for_sort": pay.id,
+                            "party_name": n
+                        })
+
+        # Sort: Opening balances first (date=None), then by date, then by ID
+        def sort_key(t):
+            # Use a very early date for opening balances
+            d = t["date"] or datetime(1900, 1, 1).date()
+            return (d, t.get("id_for_sort", 0))
+
+        transactions.sort(key=sort_key)
+
+        # Calculate Running Balance
+        running = 0
+        for t in transactions:
+            if party_type == "client":
+                running += (t["debit"] - t["credit"])
+            else:
+                running += (t["credit"] - t["debit"])
+            t["balance"] = round(running, 2)
+
+        return render_template(
+            "ledger.html",
+            name=display_name,
+            party_type=party_type.capitalize(),
+            transactions=transactions,
+            total_billed=round(total_billed, 2),
+            total_paid=round(total_paid, 2),
+            net_balance=round(running, 2),
+            is_multi=is_multi
+        )
+
     @app.route("/reports/sales-outstanding")
     def sales_outstanding_report():
 
