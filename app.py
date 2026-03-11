@@ -207,6 +207,12 @@ class SalePayment(db.Model):
     mode = db.Column(db.String(50))   # Cash / Bank / UPI
     notes = db.Column(db.String(250))
 
+    collection_id = db.Column(
+        db.Integer,
+        db.ForeignKey("client_collection.id"),
+        nullable=True
+    )
+
 class ClientCollection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
@@ -216,6 +222,7 @@ class ClientCollection(db.Model):
     notes = db.Column(db.String(250))
 
     client = db.relationship("Client", backref=db.backref("collections", cascade="all, delete-orphan"))
+    payments = db.relationship("SalePayment", backref="collection_ref", cascade="all, delete-orphan")
 
 
 class Purchase(db.Model):
@@ -870,6 +877,7 @@ def register_routes(app: Flask) -> None:
                 date = datetime.strptime(date_str, "%Y-%m-%d").date()
                 mode = request.form.get("mode")
                 notes = request.form.get("notes")
+                selected_invoice_ids = request.form.getlist("invoice_ids")
 
                 collection = ClientCollection(
                     client_id=client.id,
@@ -879,17 +887,43 @@ def register_routes(app: Flask) -> None:
                     notes=notes
                 )
                 db.session.add(collection)
+                db.session.flush() # To get collection.id
+
+                if selected_invoice_ids:
+                    for sid in selected_invoice_ids:
+                        sale = Sale.query.get(int(sid))
+                        if sale:
+                            # Create a payment for this specific sale linked to the collection
+                            # We'll pay the full balance of the sale from this collection
+                            # unless the collection amount is smaller (but UI auto-sums, so it should match)
+                            bal = sale.balance_due()
+                            if bal > 0:
+                                payment = SalePayment(
+                                    sale_id=sale.id,
+                                    date=date,
+                                    amount=bal,
+                                    mode=mode,
+                                    notes=f"Bulk Payment via Collection #{collection.id}",
+                                    collection_id=collection.id
+                                )
+                                db.session.add(payment)
+
                 db.session.commit()
 
-                flash(f"Recorded payment of ₹{amount:,.2f} from {client.name}", "success")
+                flash(f"Recorded bulk payment of ₹{amount:,.2f} from {client.name}", "success")
                 return redirect(url_for("party_ledger", party_type="client", name=client.name))
             except Exception as e:
                 db.session.rollback()
                 flash(f"Error recording collection: {str(e)}", "danger")
 
+        # GET: Fetch pending invoices
+        all_sales = Sale.query.filter_by(client_name=client.name).all()
+        pending_invoices = [s for s in all_sales if s.balance_due() > 0]
+
         return render_template(
             "client_collection_form.html",
             client=client,
+            pending_invoices=pending_invoices,
             current_date=datetime.now().strftime("%Y-%m-%d")
         )
 
@@ -971,6 +1005,8 @@ def register_routes(app: Flask) -> None:
                         "party_name": n
                     })
                     for p in s.payments:
+                        if p.collection_id:
+                            continue # Linked to a bulk payment, handled below
                         total_paid += p.amount
                         transactions.append({
                             "date": p.date,
@@ -985,13 +1021,19 @@ def register_routes(app: Flask) -> None:
                 if client_obj:
                     for c in client_obj.collections:
                         total_paid += c.amount
+                        # Grouped description
+                        inv_ids = [str(p.sale_id) for p in c.payments]
+                        desc = f"Direct Payment ({c.mode})" if c.mode else "Direct Payment"
+                        if inv_ids:
+                            desc = f"Bulk Payment ({c.mode or 'N/A'}) - Invoices: " + ", ".join(inv_ids)
+                        
                         transactions.append({
                             "date": c.date,
-                            "desc": f"Direct Payment ({c.mode})" if c.mode else "Direct Payment",
+                            "desc": desc,
                             "ref": "",
                             "debit": 0,
                             "credit": c.amount,
-                            "id_for_sort": c.id,
+                            "id_for_sort":-c.id, # Using negative to avoid conflict if any, or just sort by date
                             "party_name": n
                         })
             else: # vendor
