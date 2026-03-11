@@ -843,7 +843,7 @@ def register_routes(app: Flask) -> None:
             db.session.commit()
 
             flash("Payment recorded", "success")
-            return redirect(url_for("sales_payments"))
+            return redirect(url_for("party_ledger", party_type="client", name=sale.client_name))
 
         return render_template(
             "sale_payment_form.html",
