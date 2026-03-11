@@ -924,6 +924,7 @@ def register_routes(app: Flask) -> None:
             "client_collection_form.html",
             client=client,
             pending_invoices=pending_invoices,
+            linked_sale_ids=[],
             current_date=datetime.now().strftime("%Y-%m-%d")
         )
 

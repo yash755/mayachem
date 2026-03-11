@@ -28,10 +28,11 @@
                 </thead>
                 <tbody>
                     {% for s in pending_invoices %}
+                    {% set amt_to_pay = (s.balance_due() if s.id not in linked_sale_ids else collection.payments | selectattr('sale_id', 'equalto', s.id) | map(attribute='amount') | first or 0) %}
                     <tr>
                         <td>
                             <input type="checkbox" name="invoice_ids" value="{{ s.id }}" 
-                                   data-balance="{{ s.balance_due() }}" 
+                                   data-balance="{{ amt_to_pay }}" 
                                    {% if linked_sale_ids and s.id in linked_sale_ids %}checked{% endif %}
                                    class="form-check-input invoice-checkbox">
                         </td>
@@ -39,7 +40,7 @@
                         <td>{{ s.date }}</td>
                         <td class="text-end">
                             {% if linked_sale_ids and s.id in linked_sale_ids %}
-                                <span class="text-muted">(Paid)</span> 0.00
+                                <span class="text-success fw-bold">(Paid)</span> {{ "{:,.2f}".format(amt_to_pay) }}
                             {% else %}
                                 {{ "{:,.2f}".format(s.balance_due()) }}
                             {% endif %}
@@ -60,7 +61,7 @@
         <label class="form-label fw-bold">Total Amount Received (₹)</label>
         <input type="number" step="0.01" name="amount" id="total_amount" 
                class="form-control form-control-lg text-primary fw-bold" 
-               value="{{ collection.amount if collection else '' }}"
+               value="{{ "{:.2f}".format(collection.amount) if collection else '' }}"
                placeholder="0.00" required autofocus>
         <div id="selected_count_text" class="form-text text-success fw-bold" style="display:none;">
             Sum of <span id="selected_count">0</span> selected invoice(s).
@@ -102,17 +103,14 @@ document.addEventListener('DOMContentLoaded', function() {
         let count = 0;
         checkboxes.forEach(cb => {
             if (cb.checked) {
-                total += parseFloat(cb.getAttribute('data-balance'));
+                total += parseFloat(cb.getAttribute('data-balance')) || 0;
                 count++;
             }
         });
         
-        // Only update input if we actually found selected items (to avoid zeroing out custom advances)
+        // Update input ONLY if user is interacting or if it's the initial calculation
         if (count > 0) {
-            // Note: If balance_due was 0 (already paid), this total might be 0 for those items.
-            // We should probably pass the ORIGINAL balance if we want auto-sum to work perfectly during Edit.
-            // But let's see how it behaves.
-            // amountInput.value = total.toFixed(2);
+            amountInput.value = total.toFixed(2);
         }
         
         countSpan.textContent = count;
@@ -120,12 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     checkboxes.forEach(cb => {
-        cb.addEventListener('change', () => {
-             // In edit mode, if they toggle, we might want to trigger a re-sum.
-             // But balance_due is 0 for already paid ones.
-             // A better implementation would pass 'amount_paid' in data-attribute.
-             calculateTotal();
-        });
+        cb.addEventListener('change', calculateTotal);
     });
 
     if (selectAll) {
@@ -135,8 +128,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Initial call to set count
-    calculateTotal();
+    // Set initial count without overwriting initial value if it's an edit
+    let initialCount = 0;
+    checkboxes.forEach(cb => { if(cb.checked) initialCount++; });
+    countSpan.textContent = initialCount;
+    countText.style.display = initialCount > 0 ? 'block' : 'none';
 });
 </script>
 
