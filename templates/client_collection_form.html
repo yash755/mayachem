@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>Record Overall Payment</h3>
+
+<div class="card p-3 mb-3">
+    <strong>Client:</strong> {{ client.name }}<br>
+    <strong>Address:</strong> {{ client.address or 'N/A' }}<br>
+</div>
+
+<form method="post" class="card p-3 shadow-sm">
+    <div class="mb-3">
+        <label class="form-label">Date</label>
+        <input type="date" name="date" class="form-control" value="{{ current_date }}" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Amount Received (₹)</label>
+        <input type="number" step="0.01" name="amount" class="form-control" placeholder="0.00" required autofocus>
+        <div class="form-text">This will be credited to the client's overall ledger balance.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Payment Mode</label>
+        <select name="mode" class="form-select">
+            <option>Cash</option>
+            <option>Bank Transfer / NEFT</option>
+            <option>UPI / GPay</option>
+            <option>Cheque</option>
+            <option>Other</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Notes</label>
+        <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Payment for March Invoices, Advance, etc."></textarea>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary px-4">Save Collection</button>
+        <a href="{{ url_for('party_ledger', party_type='client', name=client.name) }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+
+{% endblock %}

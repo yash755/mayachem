@@ -6,6 +6,11 @@
         <button class="btn btn-outline-primary d-print-none" onclick="window.print()">
             <i class="bi bi-printer"></i> Print Statement
         </button>
+        {% if party_type == 'client' %}
+        <a href="{{ url_for('add_client_collection', client_id=client_obj.id) }}" class="btn btn-success d-print-none">
+            <i class="bi bi-wallet2"></i> Record Overall Payment
+        </a>
+        {% endif %}
         <a href="{{ url_for('ledger_list') }}" class="btn btn-secondary d-print-none">Back to Search</a>
     </div>
 </div>

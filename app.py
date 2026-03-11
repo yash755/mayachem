@@ -207,6 +207,16 @@ class SalePayment(db.Model):
     mode = db.Column(db.String(50))   # Cash / Bank / UPI
     notes = db.Column(db.String(250))
 
+class ClientCollection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    mode = db.Column(db.String(50))   # Cash / Bank / UPI
+    notes = db.Column(db.String(250))
+
+    client = db.relationship("Client", backref=db.backref("collections", cascade="all, delete-orphan"))
+
 
 class Purchase(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -850,6 +860,39 @@ def register_routes(app: Flask) -> None:
             sale=sale
         )
 
+    @app.route("/client/<int:client_id>/collection", methods=["GET", "POST"])
+    def add_client_collection(client_id):
+        client = Client.query.get_or_404(client_id)
+        if request.method == "POST":
+            try:
+                amount = float(request.form.get("amount"))
+                date_str = request.form.get("date")
+                date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                mode = request.form.get("mode")
+                notes = request.form.get("notes")
+
+                collection = ClientCollection(
+                    client_id=client.id,
+                    amount=amount,
+                    date=date,
+                    mode=mode,
+                    notes=notes
+                )
+                db.session.add(collection)
+                db.session.commit()
+
+                flash(f"Recorded payment of ₹{amount:,.2f} from {client.name}", "success")
+                return redirect(url_for("party_ledger", party_type="client", name=client.name))
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Error recording collection: {str(e)}", "danger")
+
+        return render_template(
+            "client_collection_form.html",
+            client=client,
+            current_date=datetime.now().strftime("%Y-%m-%d")
+        )
+
     @app.route("/sale/<int:sale_id>/payments")
     def sale_payments_detail(sale_id):
 
@@ -936,6 +979,19 @@ def register_routes(app: Flask) -> None:
                             "debit": 0,
                             "credit": p.amount,
                             "id_for_sort": p.id,
+                            "party_name": n
+                        })
+                # 3. Direct Collections (Account Payments)
+                if client_obj:
+                    for c in client_obj.collections:
+                        total_paid += c.amount
+                        transactions.append({
+                            "date": c.date,
+                            "desc": f"Direct Payment ({c.mode})" if c.mode else "Direct Payment",
+                            "ref": "",
+                            "debit": 0,
+                            "credit": c.amount,
+                            "id_for_sort": c.id,
                             "party_name": n
                         })
             else: # vendor
