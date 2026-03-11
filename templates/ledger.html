@@ -92,6 +92,12 @@
                         {% else %}
                         {{ t.desc }}
                         {% endif %}
+
+                        {% if t.is_paid %}
+                        <span class="ms-1 text-success" title="Fully Paid">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </span>
+                        {% endif %}
                     </td>
                     <td class="text-end {{ 'text-danger fw-bold' if t.debit > 0 else 'text-muted' }}">
                         {{ "₹{:,.2f}".format(t.debit) if t.debit > 0 else '-' }}

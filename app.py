@@ -1073,7 +1073,8 @@ def register_routes(app: Flask) -> None:
                         "debit": amt,
                         "credit": 0,
                         "id_for_sort": s.id,
-                        "party_name": n
+                        "party_name": n,
+                        "is_paid": s.balance_due() <= 0
                     })
                     for p in s.payments:
                         if p.collection_id:
@@ -1120,7 +1121,8 @@ def register_routes(app: Flask) -> None:
                         "debit": 0,
                         "credit": cost,
                         "id_for_sort": p_rec.id,
-                        "party_name": n
+                        "party_name": n,
+                        "is_paid": p_rec.balance_due() <= 0
                     })
                     for pay in p_rec.payments:
                         total_paid += pay.amount
