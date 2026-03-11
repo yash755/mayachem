@@ -1196,6 +1196,95 @@ def register_routes(app: Flask) -> None:
             report=report
         )
 
+    @app.route("/analytics")
+    def analytics():
+        from collections import defaultdict
+        from datetime import date, timedelta
+
+        sales = Sale.query.all()
+        purchases = Purchase.query.all()
+        expenses = Expense.query.all()
+        products = {p.id: p.name for p in Product.query.all()}
+
+        # 1. Monthly Revenue & Profit
+        monthly_data = defaultdict(lambda: {"revenue": 0, "profit": 0, "purchases": 0})
+        for s in sales:
+            m_key = s.date.strftime("%Y-%m")
+            monthly_data[m_key]["revenue"] += s.total_amount()
+            monthly_data[m_key]["profit"] += s.pl()
+        
+        for p in purchases:
+            m_key = p.date.strftime("%Y-%m")
+            monthly_data[m_key]["purchases"] += p.total_cost()
+        
+        # Sort months
+        sorted_months = sorted(monthly_data.keys())
+        chart_labels = sorted_months
+        revenue_series = [monthly_data[m]["revenue"] for m in sorted_months]
+        profit_series = [monthly_data[m]["profit"] for m in sorted_months]
+        purchase_series = [monthly_data[m]["purchases"] for m in sorted_months]
+
+        # 2. Top 5 Clients
+        client_stats = defaultdict(float)
+        for s in sales:
+            client_stats[s.client_name] += s.total_amount()
+        top_clients = sorted(client_stats.items(), key=lambda x: x[1], reverse=True)[:5]
+
+        # 3. Top 5 Products (by Volume)
+        product_stats = defaultdict(float)
+        for s in sales:
+            for item in s.items:
+                p_name = products.get(item.product_id, "Unknown Product")
+                product_stats[p_name] += (item.quantity_kg or 0)
+        top_products = sorted(product_stats.items(), key=lambda x: x[1], reverse=True)[:5]
+
+        # 4. Expense Distribution
+        expense_stats = defaultdict(float)
+        total_exp = 0
+        for e in expenses:
+            expense_stats[e.category] += e.amount
+            total_exp += e.amount
+        
+        sorted_expenses = sorted(expense_stats.items(), key=lambda x: x[1], reverse=True)
+
+        # 5. Aging Receivables
+        today = date.today()
+        aging = {"0-30": 0, "31-60": 0, "61+": 0}
+        total_outstanding = 0
+        for s in sales:
+            bal = s.balance_due()
+            if bal > 0:
+                total_outstanding += bal
+                diff = (today - s.date).days
+                if diff <= 30:
+                    aging["0-30"] += bal
+                elif diff <= 60:
+                    aging["31-60"] += bal
+                else:
+                    aging["61+"] += bal
+
+        # Totals for Cards
+        total_sales = sum(revenue_series)
+        total_profit = sum(profit_series)
+        total_purchases = sum(purchase_series)
+
+        return render_template(
+            "analytics.html",
+            chart_labels=chart_labels,
+            revenue_series=revenue_series,
+            profit_series=profit_series,
+            purchase_series=purchase_series,
+            top_clients=top_clients,
+            top_products=top_products,
+            sorted_expenses=sorted_expenses,
+            aging=aging,
+            total_outstanding=total_outstanding,
+            total_sales=total_sales,
+            total_profit=total_profit,
+            total_purchases=total_purchases,
+            total_exp=total_exp
+        )
+
     # Sales - create/edit
     @app.route("/sales/new", methods=["GET", "POST"])
     @app.route("/sales/<int:sale_id>/edit", methods=["GET", "POST"])

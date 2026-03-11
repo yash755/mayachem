@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Business Analytics Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Business Analytics Dashboard</h2>
+        <div class="text-muted small">Updated: {{ chart_labels[-1] if chart_labels else 'No Data' }}</div>
+    </div>
+
+    <!-- Stats Overview Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="text-uppercase small fw-bold opacity-75">Total Sales Revenue</h6>
+                    <h3 class="mb-0 fw-bold">₹{{ "{:,.0f}".format(total_sales) }}</h3>
+                    <div class="mt-2 small opacity-75">Cumulative across all time</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 bg-success text-white">
+                <div class="card-body">
+                    <h6 class="text-uppercase small fw-bold opacity-75">Estimated Gross Profit</h6>
+                    <h3 class="mb-0 fw-bold">₹{{ "{:,.0f}".format(total_profit) }}</h3>
+                    <div class="mt-2 small opacity-75">Based on SP - (CP + Freight)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 bg-danger text-white">
+                <div class="card-body">
+                    <h6 class="text-uppercase small fw-bold opacity-75">Total Outstanding</h6>
+                    <h3 class="mb-0 fw-bold">₹{{ "{:,.0f}".format(total_outstanding) }}</h3>
+                    <div class="mt-2 small opacity-75">Receivables from clients</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 bg-warning text-dark">
+                <div class="card-body">
+                    <h6 class="text-uppercase small fw-bold opacity-75">Operating Expenses</h6>
+                    <h3 class="mb-0 fw-bold">₹{{ "{:,.0f}".format(total_exp) }}</h3>
+                    <div class="mt-2 small opacity-75">Total overheads recorded</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <!-- Monthly Trends Chart -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold text-dark">Revenue & Profit Trends</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aging Receivables -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold text-dark">Receivables Aging</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="agingChart" height="250"></canvas>
+                    <div class="mt-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span><i class="bi bi-circle-fill text-success me-2 small"></i> 0-30 Days</span>
+                            <span class="fw-bold">₹{{ "{:,.0f}".format(aging['0-30']) }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span><i class="bi bi-circle-fill text-warning me-2 small"></i> 31-60 Days</span>
+                            <span class="fw-bold">₹{{ "{:,.0f}".format(aging['31-60']) }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span><i class="bi bi-circle-fill text-danger me-2 small"></i> 61+ Days</span>
+                            <span class="fw-bold">₹{{ "{:,.0f}".format(aging['61+']) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <!-- Top Products -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold text-dark">Top 5 Products (by Volume)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th class="text-end">Volume Sold (Kg)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for name, qty in top_products %}
+                                <tr>
+                                    <td>{{ name }}</td>
+                                    <td class="text-end fw-bold">{{ "{:,.2f}".format(qty) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expense Distribution -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold text-dark">Expense Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="expenseChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Clients Table -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold text-dark">Client Leaderboard (By Billing)</h5>
+            <a href="{{ url_for('clients_list') }}" class="btn btn-sm btn-outline-primary">View All Clients</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Rank</th>
+                            <th>Client Name</th>
+                            <th class="text-end pe-4">Total Billed Amt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, amt in top_clients %}
+                        <tr>
+                            <td class="ps-4 fw-bold">#{{ loop.index }}</td>
+                            <td class="fw-medium">{{ name }}</td>
+                            <td class="text-end pe-4 text-primary fw-bold">₹{{ "{:,.0f}".format(amt) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Script -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Monthly Revenue & Profit Chart
+        const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+        new Chart(monthlyCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_labels | tojson }},
+                datasets: [
+                    {
+                        label: 'Revenue',
+                        data: {{ revenue_series | tojson }},
+                        backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                        borderColor: 'rgb(13, 110, 253)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Gross Profit',
+                        data: {{ profit_series | tojson }},
+                        type: 'line',
+                        borderColor: '#198754',
+                        backgroundColor: '#198754',
+                        tension: 0.1,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) { return '₹' + value.toLocaleString(); }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Aging Chart
+        const agingCtx = document.getElementById('agingChart').getContext('2d');
+        new Chart(agingCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['0-30 Days', '31-60 Days', '61+ Days'],
+                datasets: [{
+                    data: [{{ aging['0-30'] }}, {{ aging['31-60'] }}, {{ aging['61+'] }}],
+                    backgroundColor: ['#198754', '#ffc107', '#dc3545'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // 3. Expense Breakdown Chart
+        const expenseCtx = document.getElementById('expenseChart').getContext('2d');
+        new Chart(expenseCtx, {
+            type: 'pie',
+            data: {
+                labels: {{ sorted_expenses | map(attribute=0) | list | tojson }},
+                datasets: [{
+                    data: {{ sorted_expenses | map(attribute=1) | list | tojson }},
+                    backgroundColor: [
+                        '#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545', 
+                        '#fd7e14', '#ffc107', '#198754', '#20c997', '#0dcaf0'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'right' }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
