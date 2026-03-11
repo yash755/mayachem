@@ -32,7 +32,8 @@ def setup_git_repo():
             return False
     else:
         print("Updating local backup repository...")
-        run_command(["git", "pull"], cwd=BACKUP_DIR)
+        # Ignore pull errors (e.g., if the remote is empty/new)
+        subprocess.run(["git", "pull"], cwd=BACKUP_DIR, capture_output=True)
     return True
 
 def backup_database():
