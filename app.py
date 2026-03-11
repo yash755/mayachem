@@ -1066,6 +1066,8 @@ def register_routes(app: Flask) -> None:
                 for s in sales:
                     amt = s.total_amount()
                     total_billed += amt
+                    balance = s.balance_due()
+                    status = "Paid" if balance <= 0 else ("Partial" if balance < amt else "Pending")
                     transactions.append({
                         "date": s.date,
                         "desc": f"Sale #{s.id} ({n})" if is_multi else f"Sale Invoice #{s.id}",
@@ -1074,7 +1076,8 @@ def register_routes(app: Flask) -> None:
                         "credit": 0,
                         "id_for_sort": s.id,
                         "party_name": n,
-                        "is_paid": s.balance_due() <= 0
+                        "payment_status": status,
+                        "sale_id": s.id
                     })
                     for p in s.payments:
                         if p.collection_id:
@@ -1114,6 +1117,8 @@ def register_routes(app: Flask) -> None:
                 for p_rec in purchases:
                     cost = p_rec.total_cost()
                     total_billed += cost
+                    balance = p_rec.balance_due()
+                    status = "Paid" if balance <= 0 else ("Partial" if balance < cost else "Pending")
                     transactions.append({
                         "date": p_rec.date,
                         "desc": f"Purchase #{p_rec.id} ({n})" if is_multi else f"Purchase Invoice #{p_rec.id}",
@@ -1122,7 +1127,8 @@ def register_routes(app: Flask) -> None:
                         "credit": cost,
                         "id_for_sort": p_rec.id,
                         "party_name": n,
-                        "is_paid": p_rec.balance_due() <= 0
+                        "payment_status": status,
+                        "purchase_id": p_rec.id
                     })
                     for pay in p_rec.payments:
                         total_paid += pay.amount

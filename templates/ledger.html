@@ -93,11 +93,39 @@
                         {{ t.desc }}
                         {% endif %}
 
-                        {% if t.is_paid %}
-                        <span class="ms-1 text-success" title="Fully Paid">
-                            <i class="bi bi-check-circle-fill"></i>
-                        </span>
-                        {% endif %}
+                        <div class="mt-1 d-flex align-items-center">
+                            {% if t.payment_status == 'Paid' %}
+                                <span class="badge bg-success" title="Fully Paid">
+                                    <i class="bi bi-check-circle-fill"></i> Paid
+                                </span>
+                            {% elif t.payment_status == 'Partial' %}
+                                <span class="badge bg-warning text-dark" title="Partially Paid">
+                                    <i class="bi bi-dash-circle-dotted"></i> Partial
+                                </span>
+                                {% if t.sale_id %}
+                                <a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="ms-2 small text-primary d-print-none">
+                                    <i class="bi bi-plus-circle"></i> Add Receipt
+                                </a>
+                                {% elif t.purchase_id %}
+                                <a href="{{ url_for('add_purchase_payment', purchase_id=t.purchase_id) }}" class="ms-2 small text-primary d-print-none">
+                                    <i class="bi bi-plus-circle"></i> Record Payment
+                                </a>
+                                {% endif %}
+                            {% elif t.payment_status == 'Pending' %}
+                                <span class="badge bg-danger" title="Unpaid">
+                                    <i class="bi bi-exclamation-circle"></i> Pending
+                                </span>
+                                {% if t.sale_id %}
+                                <a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="ms-2 small text-primary d-print-none">
+                                    <i class="bi bi-plus-circle"></i> Add Receipt
+                                </a>
+                                {% elif t.purchase_id %}
+                                <a href="{{ url_for('add_purchase_payment', purchase_id=t.purchase_id) }}" class="ms-2 small text-primary d-print-none">
+                                    <i class="bi bi-plus-circle"></i> Record Payment
+                                </a>
+                                {% endif %}
+                            {% endif %}
+                        </div>
                     </td>
                     <td class="text-end {{ 'text-danger fw-bold' if t.debit > 0 else 'text-muted' }}">
                         {{ "₹{:,.2f}".format(t.debit) if t.debit > 0 else '-' }}
