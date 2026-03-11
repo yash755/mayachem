@@ -9,9 +9,9 @@
   </div>
 
   <div class="col-md-6">
-    <label class="form-label">GST (optional)</label>
-    <input type="text" name="gst" class="form-control" value="{{ client.gst if client else '' }}">
-    <div class="form-text">Enter GSTIN without spaces</div>
+    <label class="form-label">Phone Number (WhatsApp)</label>
+    <input type="text" name="phone" class="form-control" value="{{ client.phone if client else '' }}" placeholder="e.g. 919876543210">
+    <div class="form-text">Include country code (e.g. 91 for India)</div>
   </div>
 
   <div class="col-md-6">

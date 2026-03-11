@@ -31,7 +31,12 @@
 
   <div class="col-md-3">
     <div class="card shadow-sm p-3 bg-success text-white">
-      <h6>Net Profit</h6>
+      <h6>
+        Net Profit 
+        <i class="bi bi-info-circle-fill ms-1" style="font-size: 0.8rem; cursor: help;" 
+           data-bs-toggle="tooltip" 
+           data-bs-title="Calculated as: Sales - (Product Cost + Freight + Expenses)"></i>
+      </h6>
       <h4>₹ {{ total_profit }}</h4>
     </div>
   </div>
@@ -104,7 +109,12 @@
       </div>
 
       <div class="col-md-2">
-        <small>Net P/L</small>
+        <small>
+          Net P/L 
+          <i class="bi bi-info-circle-fill ms-1" style="font-size: 0.7rem; cursor: help;" 
+             data-bs-toggle="tooltip"
+             data-bs-title="Sales - (Cost + Freight + Expense)"></i>
+        </small>
         <h5 class="{% if current_data.pl >=0 %}text-success{% else %}text-danger{% endif %}">
           ₹ {{ current_data.pl }}
         </h5>
@@ -135,7 +145,12 @@
           <th>Cost</th>
           <th>Freight</th>
           <th>Expense</th>
-          <th>Net Profit</th>
+          <th>
+            Net Profit 
+            <i class="bi bi-info-circle-fill ms-1" aria-hidden="true" style="cursor: help;"
+               data-bs-toggle="tooltip"
+               data-bs-title="Sales - (Cost + Freight + Expense)"></i>
+          </th>
         </tr>
       </thead>
 
@@ -240,6 +255,12 @@ bg-danger
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
+    // 0. Initialize Bootstap Tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+
     // 1. Revenue vs Expense Chart
     new Chart(document.getElementById('revenueChart'), {
       type: 'line',

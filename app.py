@@ -84,6 +84,7 @@ class Client(db.Model):
     name = db.Column(db.String(160), nullable=False, unique=True)
     address = db.Column(db.Text, nullable=True)
     gst = db.Column(db.String(32), nullable=True)
+    phone = db.Column(db.String(20), nullable=True)
     opening_balance = db.Column(db.Float, nullable=False, default=0.0)
 
     def __repr__(self) -> str:
@@ -458,23 +459,28 @@ def get_vendor_dues():
 
 
 def get_sales_outstanding():
-
-    sales = Sale.query.all()
+    clients = Client.query.order_by(Client.name).all()
     report = {}
 
-    for s in sales:
-        client = s.client_name
-
-        if client not in report:
-            report[client] = {
-                "total_sales": 0,
-                "total_received": 0,
-                "balance": 0
+    for c in clients:
+        # Sales for this client
+        sales = Sale.query.filter_by(client_name=c.name).all()
+        
+        total_sales = sum(s.total_amount() for s in sales)
+        total_received = sum(s.total_received() for s in sales)
+        
+        # Balance = Opening Balance + Total Sales - Total Received
+        # Opening balance is positive for receivable
+        balance = c.opening_balance + total_sales - total_received
+        
+        if balance != 0:
+            report[c.name] = {
+                "total_sales": total_sales,
+                "total_received": total_received,
+                "balance": round(balance, 2),
+                "phone": c.phone,
+                "opening_balance": c.opening_balance
             }
-
-        report[client]["total_sales"] += s.total_amount()
-        report[client]["total_received"] += s.total_received()
-        report[client]["balance"] += s.balance_due()
 
     return report
 
@@ -744,18 +750,20 @@ def register_routes(app: Flask) -> None:
             name = (request.form.get("name") or "").strip()
             address = (request.form.get("address") or "").strip()
             gst = (request.form.get("gst") or "").strip().upper()
+            phone = (request.form.get("phone") or "").strip()
             opening_balance = _to_float(request.form.get("opening_balance"), 0.0)
             if not name:
                 flash("Client name is required", "danger")
                 return render_template("clients_form.html", client=client)
             try:
                 if not client:
-                    client = Client(name=name, address=address, gst=gst, opening_balance=opening_balance)
+                    client = Client(name=name, address=address, gst=gst, phone=phone, opening_balance=opening_balance)
                     db.session.add(client)
                 else:
                     client.name = name
                     client.address = address
                     client.gst = gst
+                    client.phone = phone
                     client.opening_balance = opening_balance
                 commit_or_rollback()
                 flash("Client saved", "success")
@@ -1009,7 +1017,6 @@ def register_routes(app: Flask) -> None:
             "sales_outstanding_report.html",
             report=report
         )
-
 
     # Sales - create/edit
     @app.route("/sales/new", methods=["GET", "POST"])

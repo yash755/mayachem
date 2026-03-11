@@ -38,6 +38,13 @@
             <input type="text" name="client_name" id="client_name" class="form-control"
               placeholder="Or type client name" value="{{ sale.client_name if sale else '' }}">
           </div>
+          {% if sale and sale.id %}
+          <div class="mt-2">
+            <a href="{{ url_for('sale_payments_detail', sale_id=sale.id) }}" class="btn btn-outline-info btn-sm">
+              <i class="bi bi-wallet2"></i> Sale Payments
+            </a>
+          </div>
+          {% endif %}
         </div>
 
         <!-- More top-level fields -->

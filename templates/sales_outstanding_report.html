@@ -8,6 +8,7 @@
 <th class="text-end">Total Sales</th>
 <th class="text-end">Total Received</th>
 <th class="text-end">Balance</th>
+<th class="text-end">Action</th>
 </tr>
 </thead>
 
@@ -28,6 +29,16 @@
 
 <td class="text-end text-danger fw-semibold">
 ₹ {{ "%.2f"|format(data.balance) }}
+</td>
+
+<td class="text-end">
+  {% if data.phone %}
+  <a class="btn btn-sm btn-success" href="https://wa.me/{{ data.phone }}?text=Dear%20{{ client|urlencode }}%2C%20your%20 Maya%20Chemicals%20outstanding%20at%20Maya%20Chemicals%20is%20Rs.%20{{ "%.2f"|format(data.balance) }}.%20Kindly%20settle%20it%20at%20your%20earliest.%20Thanks!" target="_blank">
+    <i class="bi bi-whatsapp"></i> Remind
+  </a>
+  {% else %}
+  <span class="text-muted small">No Phone</span>
+  {% endif %}
 </td>
 
 </tr>
