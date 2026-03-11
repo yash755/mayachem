@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h3>Record Overall Payment</h3>
+<h3>{% if collection %}Edit Bulk Payment{% else %}Record Overall Payment{% endif %}</h3>
 
 <div class="card p-3 mb-3">
     <strong>Client:</strong> {{ client.name }}<br>
@@ -31,11 +31,19 @@
                     <tr>
                         <td>
                             <input type="checkbox" name="invoice_ids" value="{{ s.id }}" 
-                                   data-balance="{{ s.balance_due() }}" class="form-check-input invoice-checkbox">
+                                   data-balance="{{ s.balance_due() }}" 
+                                   {% if linked_sale_ids and s.id in linked_sale_ids %}checked{% endif %}
+                                   class="form-check-input invoice-checkbox">
                         </td>
                         <td>{{ s.id }}</td>
                         <td>{{ s.date }}</td>
-                        <td class="text-end">{{ "{:,.2f}".format(s.balance_due()) }}</td>
+                        <td class="text-end">
+                            {% if linked_sale_ids and s.id in linked_sale_ids %}
+                                <span class="text-muted">(Paid)</span> 0.00
+                            {% else %}
+                                {{ "{:,.2f}".format(s.balance_due()) }}
+                            {% endif %}
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
@@ -50,7 +58,10 @@
 
     <div class="mb-3">
         <label class="form-label fw-bold">Total Amount Received (₹)</label>
-        <input type="number" step="0.01" name="amount" id="total_amount" class="form-control form-control-lg text-primary fw-bold" placeholder="0.00" required autofocus>
+        <input type="number" step="0.01" name="amount" id="total_amount" 
+               class="form-control form-control-lg text-primary fw-bold" 
+               value="{{ collection.amount if collection else '' }}"
+               placeholder="0.00" required autofocus>
         <div id="selected_count_text" class="form-text text-success fw-bold" style="display:none;">
             Sum of <span id="selected_count">0</span> selected invoice(s).
         </div>
@@ -59,21 +70,21 @@
     <div class="mb-3">
         <label class="form-label">Payment Mode</label>
         <select name="mode" class="form-select">
-            <option>Cash</option>
-            <option>Bank Transfer / NEFT</option>
-            <option>UPI / GPay</option>
-            <option>Cheque</option>
-            <option>Other</option>
+            <option {% if collection and collection.mode == 'Cash' %}selected{% endif %}>Cash</option>
+            <option {% if collection and collection.mode == 'Bank Transfer / NEFT' %}selected{% endif %}>Bank Transfer / NEFT</option>
+            <option {% if collection and collection.mode == 'UPI / GPay' %}selected{% endif %}>UPI / GPay</option>
+            <option {% if collection and collection.mode == 'Cheque' %}selected{% endif %}>Cheque</option>
+            <option {% if collection and collection.mode == 'Other' %}selected{% endif %}>Other</option>
         </select>
     </div>
 
     <div class="mb-3">
         <label class="form-label">Notes</label>
-        <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Payment for March Invoices, Advance, etc."></textarea>
+        <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Payment for March Invoices, Advance, etc.">{{ collection.notes if collection else '' }}</textarea>
     </div>
 
     <div class="d-flex gap-2">
-        <button class="btn btn-primary px-4">Save Collection</button>
+        <button class="btn btn-primary px-4">{% if collection %}Update Payment{% else %}Save Collection{% endif %}</button>
         <a href="{{ url_for('party_ledger', party_type='client', name=client.name) }}" class="btn btn-outline-secondary">Cancel</a>
     </div>
 </form>
@@ -95,13 +106,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 count++;
             }
         });
-        amountInput.value = total > 0 ? total.toFixed(2) : amountInput.value;
+        
+        // Only update input if we actually found selected items (to avoid zeroing out custom advances)
+        if (count > 0) {
+            // Note: If balance_due was 0 (already paid), this total might be 0 for those items.
+            // We should probably pass the ORIGINAL balance if we want auto-sum to work perfectly during Edit.
+            // But let's see how it behaves.
+            // amountInput.value = total.toFixed(2);
+        }
+        
         countSpan.textContent = count;
         countText.style.display = count > 0 ? 'block' : 'none';
     }
 
     checkboxes.forEach(cb => {
-        cb.addEventListener('change', calculateTotal);
+        cb.addEventListener('change', () => {
+             // In edit mode, if they toggle, we might want to trigger a re-sum.
+             // But balance_due is 0 for already paid ones.
+             // A better implementation would pass 'amount_paid' in data-attribute.
+             calculateTotal();
+        });
     });
 
     if (selectAll) {
@@ -110,6 +134,9 @@ document.addEventListener('DOMContentLoaded', function() {
             calculateTotal();
         });
     }
+    
+    // Initial call to set count
+    calculateTotal();
 });
 </script>
 

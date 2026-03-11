@@ -927,6 +927,76 @@ def register_routes(app: Flask) -> None:
             current_date=datetime.now().strftime("%Y-%m-%d")
         )
 
+    @app.route("/client/collection/<int:collection_id>/edit", methods=["GET", "POST"])
+    def edit_client_collection(collection_id):
+        collection = ClientCollection.query.get_or_404(collection_id)
+        client = collection.client
+        if request.method == "POST":
+            try:
+                collection.amount = float(request.form.get("amount"))
+                date_str = request.form.get("date")
+                collection.date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                collection.mode = request.form.get("mode")
+                collection.notes = request.form.get("notes")
+                selected_invoice_ids = request.form.getlist("invoice_ids")
+
+                # Remove old payments linked to this collection
+                SalePayment.query.filter_by(collection_id=collection.id).delete()
+                db.session.flush()
+
+                if selected_invoice_ids:
+                    for sid in selected_invoice_ids:
+                        sale = Sale.query.get(int(sid))
+                        if sale:
+                            bal = sale.balance_due()
+                            if bal > 0:
+                                payment = SalePayment(
+                                    sale_id=sale.id,
+                                    date=collection.date,
+                                    amount=bal,
+                                    mode=collection.mode,
+                                    notes=f"Bulk Payment via Collection #{collection.id} (Updated)",
+                                    collection_id=collection.id
+                                )
+                                db.session.add(payment)
+
+                db.session.commit()
+                flash("Bulk payment updated successfully", "success")
+                return redirect(url_for("party_ledger", party_type="client", name=client.name))
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Error updating collection: {str(e)}", "danger")
+
+        # GET: Fetch pending invoices + those currently linked to this collection
+        all_sales = Sale.query.filter_by(client_name=client.name).all()
+        # An invoice is "available" if it has a balance OR if it's already linked to this collection
+        linked_sale_ids = [p.sale_id for p in collection.payments]
+        pending_invoices = [s for s in all_sales if s.balance_due() > 0 or s.id in linked_sale_ids]
+
+        return render_template(
+            "client_collection_form.html",
+            client=client,
+            collection=collection,
+            linked_sale_ids=linked_sale_ids,
+            pending_invoices=pending_invoices,
+            current_date=collection.date.strftime("%Y-%m-%d")
+        )
+
+    @app.route("/client/collection/<int:collection_id>/delete")
+    def delete_client_collection(collection_id):
+        collection = ClientCollection.query.get_or_404(collection_id)
+        client_name = collection.client.name
+        try:
+            # SalePayment records will be deleted via cascade
+            db.session.delete(collection)
+            db.session.commit()
+            flash("Bulk payment deleted successfully", "warning")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error deleting collection: {str(e)}", "danger")
+        
+        return redirect(url_for("party_ledger", party_type="client", name=client_name))
+
     @app.route("/sale/<int:sale_id>/payments")
     def sale_payments_detail(sale_id):
 
@@ -1033,8 +1103,9 @@ def register_routes(app: Flask) -> None:
                             "ref": "",
                             "debit": 0,
                             "credit": c.amount,
-                            "id_for_sort":-c.id, # Using negative to avoid conflict if any, or just sort by date
-                            "party_name": n
+                            "id_for_sort": -c.id,
+                            "party_name": n,
+                            "collection_id": c.id
                         })
             else: # vendor
                 purchases = Purchase.query.filter_by(vendor_name=n).all()
