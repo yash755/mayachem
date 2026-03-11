@@ -1,48 +1,80 @@
 import os
 import shutil
 import sqlite3
+import subprocess
 from datetime import datetime
 import time
 
 # Configuration
 DB_PATH = "instance/hcl_sales.db"
-BACKUP_DIR = "backups"
-RETENTION_DAYS = 7
+BACKUP_DIR = "backups_repo" # Local folder for the cloned backup repo
+# The user should set this environment variable on the server
+REPO_URL = os.environ.get("BACKUP_REPO_URL") 
+RETENTION_DAYS = 30 # Can keep more in Git as it's efficient
+
+def run_command(command, cwd=None):
+    try:
+        result = subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Command failed: {' '.join(command)}")
+        print(f"Error: {e.stderr}")
+        return None
+
+def setup_git_repo():
+    if not REPO_URL:
+        print("Error: BACKUP_REPO_URL environment variable not set.")
+        return False
+
+    if not os.path.exists(BACKUP_DIR):
+        print(f"Cloning backup repository from {REPO_URL}...")
+        if run_command(["git", "clone", REPO_URL, BACKUP_DIR]) is None:
+            return False
+    else:
+        print("Updating local backup repository...")
+        run_command(["git", "pull"], cwd=BACKUP_DIR)
+    return True
 
 def backup_database():
-    # 1. Ensure backup directory exists
-    if not os.path.exists(BACKUP_DIR):
-        print(f"Creating backup directory: {BACKUP_DIR}")
-        os.makedirs(BACKUP_DIR)
+    if not setup_git_repo():
+        return
 
-    # 2. Generate timestamped filename
+    # 1. Generate timestamped filename
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     backup_filename = f"backup_{timestamp}.db"
     backup_path = os.path.join(BACKUP_DIR, backup_filename)
 
-    print(f"Starting backup of {DB_PATH} to {backup_path}...")
+    print(f"Starting backup of {DB_PATH} to Git repo...")
 
-    # 3. Perform the backup
+    # 2. Perform the backup
     try:
         if not os.path.exists(DB_PATH):
             print(f"Error: Database file not found at {DB_PATH}")
             return
 
-        # Use sqlite3's online backup functionality for safety
         with sqlite3.connect(DB_PATH) as src_conn:
             with sqlite3.connect(backup_path) as dst_conn:
                 src_conn.backup(dst_conn)
         
-        print(f"Backup completed successfully: {backup_path}")
+        print(f"Backup created locally: {backup_path}")
     except Exception as e:
         print(f"Error during backup: {e}")
         return
 
-    # 4. Cleanup old backups (Retention)
+    # 3. Git operations
+    print("Pushing backup to remote repository...")
+    run_command(["git", "add", backup_filename], cwd=BACKUP_DIR)
+    run_command(["git", "commit", "-m", f"Database backup {timestamp}"], cwd=BACKUP_DIR)
+    if run_command(["git", "push"], cwd=BACKUP_DIR) is not None:
+        print("Backup successfully pushed to Git!")
+
+    # 4. Cleanup old backups locally (Git history remains)
     cleanup_old_backups()
 
 def cleanup_old_backups():
-    print(f"Cleaning up backups older than {RETENTION_DAYS} days...")
+    # We still keep a few local copies in the repo folder for quick access
+    # But Git itself stores the full history.
+    print(f"Running local cleanup in {BACKUP_DIR}...")
     now = time.time()
     retention_seconds = RETENTION_DAYS * 86400
 
@@ -53,12 +85,13 @@ def cleanup_old_backups():
                 continue
             
             file_path = os.path.join(BACKUP_DIR, file)
-            # check if it's a file
             if os.path.isfile(file_path):
                 file_age = os.path.getmtime(file_path)
                 if now - file_age > retention_seconds:
-                    print(f"Deleting old backup: {file}")
-                    os.remove(file_path)
+                    print(f"Removing old backup from local tracking: {file}")
+                    run_command(["git", "rm", file], cwd=BACKUP_DIR)
+                    run_command(["git", "commit", "-m", f"Cleanup old backup {file}"], cwd=BACKUP_DIR)
+                    run_command(["git", "push"], cwd=BACKUP_DIR)
     except Exception as e:
         print(f"Error during cleanup: {e}")
 
