@@ -16,7 +16,7 @@
 {% for vendor, data in vendor_report.items() %}
 <tr>
 
-<td>{{ vendor }}</td>
+<td><a href="{{ url_for('party_ledger', party_type='vendor', name=vendor) }}" class="text-decoration-none fw-medium text-dark">{{ vendor }}</a></td>
 
 <td class="text-end">
 ₹ {{ "%.2f"|format(data.total_purchase) }}
