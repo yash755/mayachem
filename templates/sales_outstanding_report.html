@@ -17,7 +17,7 @@
 {% for client, data in client_report.items() if data.balance > 0 %}
 <tr>
 
-<td><a href="{{ url_for('party_ledger', party_type='client', name=client) }}" class="text-decoration-none fw-medium text-dark">{{ client }}</a></td>
+<td><a href="{{ url_for('party_ledger', party_type='client', name=client) }}" class="text-decoration-underline fw-medium text-primary">{{ client }}</a></td>
 
 <td class="text-end">
 ₹ {{ "%.2f"|format(data.total_sales) }}
