@@ -98,7 +98,7 @@
                                     <i class="bi bi-plus-circle"></i> Add Receipt
                                 </a>
                                 {% elif t.purchase_id %}
-                                <a href="{{ url_for('add_purchase_payment', purchase_id=t.purchase_id) }}" class="small text-primary d-print-none text-decoration-none">
+                                <a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="small text-primary d-print-none text-decoration-none">
                                     <i class="bi bi-plus-circle"></i> Record Payment
                                 </a>
                                 {% endif %}
@@ -111,7 +111,7 @@
                                     <i class="bi bi-plus-circle"></i> Add Receipt
                                 </a>
                                 {% elif t.purchase_id %}
-                                <a href="{{ url_for('add_purchase_payment', purchase_id=t.purchase_id) }}" class="small text-primary d-print-none text-decoration-none">
+                                <a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="small text-primary d-print-none text-decoration-none">
                                     <i class="bi bi-plus-circle"></i> Record Payment
                                 </a>
                                 {% endif %}
