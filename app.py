@@ -225,6 +225,17 @@ class ClientCollection(db.Model):
     payments = db.relationship("SalePayment", backref="collection_ref", cascade="all, delete-orphan")
 
 
+class VendorCollection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    vendor_name = db.Column(db.String(160), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    mode = db.Column(db.String(50))   # Cash / Bank / UPI
+    notes = db.Column(db.String(250))
+
+    payments = db.relationship("PurchasePayment", backref="vendor_collection_ref", cascade="all, delete-orphan")
+
+
 class Purchase(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
@@ -313,6 +324,12 @@ class PurchasePayment(db.Model):
 
     mode = db.Column(db.String(50))   # Cash / Bank / UPI
     notes = db.Column(db.String(250))
+
+    collection_id = db.Column(
+        db.Integer,
+        db.ForeignKey("vendor_collection.id"),
+        nullable=True
+    )
 
 
 
@@ -999,6 +1016,127 @@ def register_routes(app: Flask) -> None:
         
         return redirect(url_for("party_ledger", party_type="client", name=client_name))
 
+    # -----------------------------------------------------------------------
+    # Vendor Bulk Payments (VendorCollection)
+    # -----------------------------------------------------------------------
+
+    @app.route("/vendor/<path:vendor_name>/collection", methods=["GET", "POST"])
+    def add_vendor_collection(vendor_name):
+        if request.method == "POST":
+            try:
+                amount = float(request.form.get("amount"))
+                date = datetime.strptime(request.form.get("date"), "%Y-%m-%d").date()
+                mode = request.form.get("mode")
+                notes = request.form.get("notes")
+                selected_ids = request.form.getlist("invoice_ids")
+
+                collection = VendorCollection(
+                    vendor_name=vendor_name,
+                    amount=amount,
+                    date=date,
+                    mode=mode,
+                    notes=notes
+                )
+                db.session.add(collection)
+                db.session.flush()
+
+                if selected_ids:
+                    for pid in selected_ids:
+                        purchase = Purchase.query.get(int(pid))
+                        if purchase:
+                            bal = purchase.balance_due()
+                            if bal > 0:
+                                pay = PurchasePayment(
+                                    purchase_id=purchase.id,
+                                    date=date,
+                                    amount=bal,
+                                    mode=mode,
+                                    notes=f"Bulk Payment via VendorCollection #{collection.id}",
+                                    collection_id=collection.id
+                                )
+                                db.session.add(pay)
+
+                db.session.commit()
+                flash(f"Recorded bulk payment of \u20b9{amount:,.2f} to {vendor_name}", "success")
+                return redirect(url_for("party_ledger", party_type="vendor", name=vendor_name))
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Error recording vendor payment: {str(e)}", "danger")
+
+        all_purchases = Purchase.query.filter_by(vendor_name=vendor_name).all()
+        pending_invoices = [p for p in all_purchases if p.balance_due() > 0]
+        return render_template(
+            "vendor_collection_form.html",
+            vendor_name=vendor_name,
+            pending_invoices=pending_invoices,
+            linked_purchase_ids=[],
+            current_date=datetime.now().strftime("%Y-%m-%d")
+        )
+
+    @app.route("/vendor/collection/<int:collection_id>/edit", methods=["GET", "POST"])
+    def edit_vendor_collection(collection_id):
+        collection = VendorCollection.query.get_or_404(collection_id)
+        vendor_name = collection.vendor_name
+        if request.method == "POST":
+            try:
+                collection.amount = float(request.form.get("amount"))
+                collection.date = datetime.strptime(request.form.get("date"), "%Y-%m-%d").date()
+                collection.mode = request.form.get("mode")
+                collection.notes = request.form.get("notes")
+                selected_ids = request.form.getlist("invoice_ids")
+
+                # Remove old linked payments
+                PurchasePayment.query.filter_by(collection_id=collection.id).delete()
+                db.session.flush()
+
+                if selected_ids:
+                    for pid in selected_ids:
+                        purchase = Purchase.query.get(int(pid))
+                        if purchase:
+                            bal = purchase.balance_due()
+                            if bal > 0:
+                                pay = PurchasePayment(
+                                    purchase_id=purchase.id,
+                                    date=collection.date,
+                                    amount=bal,
+                                    mode=collection.mode,
+                                    notes=f"Bulk Payment via VendorCollection #{collection.id} (Updated)",
+                                    collection_id=collection.id
+                                )
+                                db.session.add(pay)
+
+                db.session.commit()
+                flash("Vendor bulk payment updated", "success")
+                return redirect(url_for("party_ledger", party_type="vendor", name=vendor_name))
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Error updating vendor payment: {str(e)}", "danger")
+
+        linked_purchase_ids = [p.purchase_id for p in collection.payments]
+        all_purchases = Purchase.query.filter_by(vendor_name=vendor_name).all()
+        pending_invoices = [p for p in all_purchases if p.balance_due() > 0 or p.id in linked_purchase_ids]
+        return render_template(
+            "vendor_collection_form.html",
+            vendor_name=vendor_name,
+            collection=collection,
+            pending_invoices=pending_invoices,
+            linked_purchase_ids=linked_purchase_ids,
+            current_date=collection.date.strftime("%Y-%m-%d")
+        )
+
+    @app.route("/vendor/collection/<int:collection_id>/delete")
+    def delete_vendor_collection(collection_id):
+        collection = VendorCollection.query.get_or_404(collection_id)
+        vendor_name = collection.vendor_name
+        try:
+            db.session.delete(collection)  # cascades PurchasePayment rows
+            db.session.commit()
+            flash("Vendor bulk payment deleted", "warning")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error deleting vendor payment: {str(e)}", "danger")
+        return redirect(url_for("party_ledger", party_type="vendor", name=vendor_name))
+
     @app.route("/sale/<int:sale_id>/payments")
     def sale_payments_detail(sale_id):
 
@@ -1132,6 +1270,8 @@ def register_routes(app: Flask) -> None:
                         "purchase_id": p_rec.id
                     })
                     for pay in p_rec.payments:
+                        if pay.collection_id:
+                            continue  # Handled as a bulk payment row below
                         total_paid += pay.amount
                         transactions.append({
                             "date": pay.date,
@@ -1142,6 +1282,25 @@ def register_routes(app: Flask) -> None:
                             "id_for_sort": pay.id,
                             "party_name": n
                         })
+
+                # Vendor bulk payments
+                vendor_collections = VendorCollection.query.filter_by(vendor_name=n).all()
+                for vc in vendor_collections:
+                    total_paid += vc.amount
+                    inv_ids = [str(p.purchase_id) for p in vc.payments]
+                    desc = f"Bulk Payment ({vc.mode or 'N/A'})"
+                    if inv_ids:
+                        desc = f"Bulk Payment ({vc.mode or 'N/A'}) - Invoices: " + ", ".join(inv_ids)
+                    transactions.append({
+                        "date": vc.date,
+                        "desc": desc,
+                        "ref": "",
+                        "debit": vc.amount,
+                        "credit": 0,
+                        "id_for_sort": -vc.id,
+                        "party_name": n,
+                        "vendor_collection_id": vc.id
+                    })
 
         # Sort: Opening balances first (date=None), then by date, then by ID
         def sort_key(t):

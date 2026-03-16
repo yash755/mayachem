@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>{% if collection %}Edit Bulk Payment{% else %}Record Bulk Payment{% endif %}</h3>
+
+<div class="card p-3 mb-3">
+    <strong>Vendor:</strong> {{ vendor_name }}
+</div>
+
+<form method="post" class="card p-3 shadow-sm">
+    <div class="mb-3">
+        <label class="form-label">Date</label>
+        <input type="date" name="date" class="form-control" value="{{ current_date }}" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Select Invoices to Pay</label>
+        <div class="table-responsive border rounded p-2 bg-light" style="max-height: 300px; overflow-y: auto;">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th style="width: 40px;"><input type="checkbox" id="select_all_invoices" class="form-check-input"></th>
+                        <th>Inv #</th>
+                        <th>Date</th>
+                        <th class="text-end">Balance (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in pending_invoices %}
+                    {% set amt_to_pay = (p.balance_due() if p.id not in linked_purchase_ids else collection.payments | selectattr('purchase_id', 'equalto', p.id) | map(attribute='amount') | first or 0) %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="invoice_ids" value="{{ p.id }}"
+                                   data-balance="{{ amt_to_pay }}"
+                                   {% if linked_purchase_ids and p.id in linked_purchase_ids %}checked{% endif %}
+                                   class="form-check-input invoice-checkbox">
+                        </td>
+                        <td>{{ p.id }}</td>
+                        <td>{{ p.date }}</td>
+                        <td class="text-end">
+                            {% if linked_purchase_ids and p.id in linked_purchase_ids %}
+                                <span class="text-success fw-bold">(Paid)</span> {{ "{:,.2f}".format(amt_to_pay) }}
+                            {% else %}
+                                {{ "{:,.2f}".format(p.balance_due()) }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No pending invoices found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="form-text mt-1">If no invoices are selected, this will be recorded as a general advance payment.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Total Amount Paid (₹)</label>
+        <input type="number" step="0.01" name="amount" id="total_amount"
+               class="form-control form-control-lg text-primary fw-bold"
+               value="{{ "{:.2f}".format(collection.amount) if collection else '' }}"
+               placeholder="0.00" required autofocus>
+        <div id="selected_count_text" class="form-text text-success fw-bold" style="display:none;">
+            Sum of <span id="selected_count">0</span> selected invoice(s).
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Payment Mode</label>
+        <select name="mode" class="form-select">
+            <option {% if collection and collection.mode == 'Cash' %}selected{% endif %}>Cash</option>
+            <option {% if collection and collection.mode == 'Bank Transfer / NEFT' %}selected{% endif %}>Bank Transfer / NEFT</option>
+            <option {% if collection and collection.mode == 'UPI / GPay' %}selected{% endif %}>UPI / GPay</option>
+            <option {% if collection and collection.mode == 'Cheque' %}selected{% endif %}>Cheque</option>
+            <option {% if collection and collection.mode == 'Other' %}selected{% endif %}>Other</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Notes</label>
+        <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Payment for March invoices, advance, etc.">{{ collection.notes if collection else '' }}</textarea>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary px-4">{% if collection %}Update Payment{% else %}Save Payment{% endif %}</button>
+        <a href="{{ url_for('party_ledger', party_type='vendor', name=vendor_name) }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('.invoice-checkbox');
+    const amountInput = document.getElementById('total_amount');
+    const selectAll = document.getElementById('select_all_invoices');
+    const countSpan = document.getElementById('selected_count');
+    const countText = document.getElementById('selected_count_text');
+
+    function calculateTotal() {
+        let total = 0;
+        let count = 0;
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                total += parseFloat(cb.getAttribute('data-balance')) || 0;
+                count++;
+            }
+        });
+        if (count > 0) {
+            amountInput.value = total.toFixed(2);
+        }
+        countSpan.textContent = count;
+        countText.style.display = count > 0 ? 'block' : 'none';
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', calculateTotal));
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            calculateTotal();
+        });
+    }
+
+    let initialCount = 0;
+    checkboxes.forEach(cb => { if (cb.checked) initialCount++; });
+    countSpan.textContent = initialCount;
+    countText.style.display = initialCount > 0 ? 'block' : 'none';
+});
+</script>
+
+{% endblock %}
