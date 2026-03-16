@@ -311,6 +311,7 @@ class PurchasePayment(db.Model):
     date = db.Column(db.Date, nullable=False)
     amount = db.Column(db.Float, nullable=False)
 
+    mode = db.Column(db.String(50))   # Cash / Bank / UPI
     notes = db.Column(db.String(250))
 
 
