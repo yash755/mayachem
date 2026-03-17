@@ -40,8 +40,6 @@
   .search-box { max-width: 360px; }
   .client-meta { font-size: 0.82rem; color: #6c757d; }
   .no-clients { padding: 60px 0; }
-  #client-grid .col { display: flex; }
-  #client-grid .col.d-none { display: none !important; }
 </style>
 
 <!-- Header -->
@@ -68,7 +66,7 @@
 
 <!-- Cards Grid -->
 {% if rows %}
-<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" id="client-grid">
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch" id="client-grid">
   {% for c in rows %}
   {% set balance = balances.get(c.id, 0) %}
   <div class="col client-col" data-name="{{ c.name | lower }}">
