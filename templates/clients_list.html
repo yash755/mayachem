@@ -1,55 +1,176 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Clients</h3>
-  <a class="btn btn-primary" href="{{ url_for('clients_form') }}">+ New Client</a>
+
+<style>
+  .client-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+  }
+  .client-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1) !important;
+  }
+  .client-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: white;
+  }
+  .balance-badge {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+  .action-btn {
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .search-box { max-width: 360px; }
+  .client-meta { font-size: 0.82rem; color: #6c757d; }
+  .no-clients { padding: 60px 0; }
+  #client-grid .col { display: flex; }
+  #client-grid .col.d-none { display: none !important; }
+</style>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold">Clients</h4>
+    <small class="text-muted">{{ rows|length }} client{{ 's' if rows|length != 1 }}</small>
+  </div>
+  <a class="btn btn-primary px-4" href="{{ url_for('clients_form') }}">
+    <i class="bi bi-plus-lg me-1"></i> New Client
+  </a>
 </div>
 
-<form class="row g-2 mb-3">
-  <div class="col-auto">
-    <input type="text" class="form-control" name="q" placeholder="Search client..." value="{{ q }}">
+<!-- Search -->
+<div class="mb-4 search-box">
+  <div class="input-group shadow-sm">
+    <span class="input-group-text bg-white border-end-0">
+      <i class="bi bi-search text-muted"></i>
+    </span>
+    <input type="text" id="liveSearch" class="form-control border-start-0 ps-0"
+           placeholder="Search clients…" value="{{ q }}" autofocus>
   </div>
-  <div class="col-auto">
-    <button class="btn btn-outline-secondary">Search</button>
-  </div>
-</form>
+</div>
 
-<div class="table-responsive">
-<table class="table table-hover align-middle">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Address</th>
-      <th>Phone</th>
-      <th>GST</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for c in rows %}
-    <tr>
-      <td>{{ c.name }}</td>
-      <td style="max-width: 400px; white-space:normal;">{{ c.address }}</td>
-      <td>{{ c.phone or '-' }}</td>
-      <td>{{ c.gst or '-' }}</td>
-      <td class="text-nowrap">
+<!-- Cards Grid -->
+{% if rows %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" id="client-grid">
+  {% for c in rows %}
+  {% set balance = balances.get(c.id, 0) %}
+  <div class="col client-col" data-name="{{ c.name | lower }}">
+    <div class="card client-card shadow-sm h-100 p-3">
+
+      <!-- Name + avatar + balance -->
+      <div class="d-flex align-items-start gap-3 mb-2">
+        <div class="client-avatar">{{ c.name[0] | upper }}</div>
+        <div class="flex-grow-1 min-w-0">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
+            <h6 class="mb-0 fw-bold text-truncate" style="max-width: 200px;" title="{{ c.name }}">{{ c.name }}</h6>
+            {% if balance > 0 %}
+              <span class="balance-badge bg-danger-subtle text-danger">₹{{ "{:,.0f}".format(balance) }} due</span>
+            {% elif balance < 0 %}
+              <span class="balance-badge bg-success-subtle text-success">₹{{ "{:,.0f}".format(balance|abs) }} advance</span>
+            {% else %}
+              <span class="balance-badge bg-success-subtle text-success">Settled</span>
+            {% endif %}
+          </div>
+
+          <!-- Meta -->
+          <div class="client-meta mt-1 d-flex flex-wrap gap-2">
+            {% if c.phone %}
+            <span><i class="bi bi-telephone me-1"></i>{{ c.phone }}</span>
+            {% endif %}
+            {% if c.gst %}
+            <span><i class="bi bi-building me-1"></i>{{ c.gst }}</span>
+            {% endif %}
+          </div>
+          {% if c.address %}
+          <div class="client-meta text-truncate mt-1" title="{{ c.address }}">
+            <i class="bi bi-geo-alt me-1"></i>{{ c.address }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="d-flex flex-wrap gap-2 mt-auto pt-2 border-top">
+        <a class="action-btn btn btn-outline-primary" href="{{ url_for('party_ledger', party_type='client', name=c.name) }}">
+          <i class="bi bi-journal-text me-1"></i>Ledger
+        </a>
+        <a class="action-btn btn btn-success text-white" href="{{ url_for('add_client_collection', client_id=c.id) }}">
+          <i class="bi bi-wallet2 me-1"></i>Payment
+        </a>
         {% if c.phone %}
-        <a class="btn btn-sm btn-outline-success" href="https://wa.me/{{ c.phone }}?text=Hello%20{{ c.name }}%2C%20this%20is%20from%20Maya%20Chemicals." target="_blank" title="WhatsApp Reminder">
+        <a class="action-btn btn btn-outline-success"
+           href="https://wa.me/{{ c.phone }}?text=Hello%20{{ c.name }}%2C%20this%20is%20from%20Maya%20Chemicals."
+           target="_blank" title="WhatsApp">
           <i class="bi bi-whatsapp"></i>
         </a>
         {% endif %}
-        <a class="btn btn-sm btn-info text-white" href="{{ url_for('party_ledger', party_type='client', name=c.name) }}">Ledger</a>
-        <a class="btn btn-sm btn-success text-white" href="{{ url_for('add_client_collection', client_id=c.id) }}" title="Record Bulk Payment">Payment</a>
-        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('clients_form', client_id=c.id) }}">Edit</a>
-        <form class="d-inline" method="post" action="{{ url_for('clients_delete', client_id=c.id) }}" onsubmit="return confirm('Delete this client?');">
-          <button class="btn btn-sm btn-outline-danger">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="4" class="text-center">No clients found.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+        <div class="ms-auto d-flex gap-1">
+          <a class="action-btn btn btn-outline-secondary" href="{{ url_for('clients_form', client_id=c.id) }}" title="Edit">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <form method="post" action="{{ url_for('clients_delete', client_id=c.id) }}"
+                onsubmit="return confirm('Delete {{ c.name }}?');" class="d-inline">
+            <button class="action-btn btn btn-outline-danger" title="Delete">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  {% endfor %}
 </div>
+
+<!-- No results -->
+<div id="no-results" class="text-center text-muted no-clients" style="display:none;">
+  <i class="bi bi-person-x fs-1 d-block mb-2"></i>
+  No clients match your search.
+</div>
+
+{% else %}
+<div class="text-center text-muted no-clients">
+  <i class="bi bi-people fs-1 d-block mb-2"></i>
+  No clients found. <a href="{{ url_for('clients_form') }}">Add your first client →</a>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const search = document.getElementById('liveSearch');
+  if (!search) return;
+
+  search.addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    const cols = document.querySelectorAll('.client-col');
+    let visible = 0;
+    cols.forEach(col => {
+      const name = col.dataset.name || '';
+      const show = !q || name.includes(q);
+      col.classList.toggle('d-none', !show);
+      if (show) visible++;
+    });
+    const noRes = document.getElementById('no-results');
+    if (noRes) noRes.style.display = visible === 0 ? 'block' : 'none';
+  });
+});
+</script>
+
 {% endblock %}

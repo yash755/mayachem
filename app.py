@@ -773,7 +773,17 @@ def register_routes(app: Flask) -> None:
         if q:
             query = query.filter(Client.name.ilike(f"%{q}%"))
         rows = query.order_by(Client.name.asc()).all()
-        return render_template("clients_list.html", rows=rows, q=q)
+
+        # Compute outstanding balance per client for display
+        balances = {}
+        for c in rows:
+            sales = Sale.query.filter_by(client_name=c.name).all()
+            total_sales = sum(s.total_amount() for s in sales)
+            total_received = sum(s.total_received() for s in sales)
+            balances[c.id] = round(c.opening_balance + total_sales - total_received, 2)
+
+        return render_template("clients_list.html", rows=rows, q=q, balances=balances)
+
 
     @app.route("/clients/new", methods=["GET", "POST"])
     @app.route("/clients/<int:client_id>/edit", methods=["GET", "POST"])
