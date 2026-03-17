@@ -1337,7 +1337,8 @@ def register_routes(app: Flask) -> None:
             total_billed=round(total_billed, 2),
             total_paid=round(total_paid, 2),
             net_balance=round(running, 2),
-            is_multi=is_multi
+            is_multi=is_multi,
+            client_obj=client_obj if party_type == "client" else None
         )
 
     @app.route("/reports/sales-outstanding")
