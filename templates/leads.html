@@ -2,111 +2,133 @@
 {% block title %}Leads{% endblock %}
 
 {% block content %}
-<div class="row">
-  <div class="col-12">
-    <h3>Leads</h3>
+
+<style>
+  /* ─── Status badge colours ─── */
+  .badge-status { font-size: 0.72rem; font-weight: 600; padding: 3px 8px; border-radius: 12px; white-space: nowrap; }
+  .status-new            { background:#dbeafe; color:#1d4ed8; }
+  .status-contacted      { background:#fef9c3; color:#854d0e; }
+  .status-interested     { background:#dcfce7; color:#15803d; }
+  .status-not-interested { background:#fee2e2; color:#b91c1c; }
+  .status-converted      { background:#d1fae5; color:#065f46; }
+  .status-default        { background:#f3f4f6; color:#374151; }
+
+  /* ─── Lead card ─── */
+  .lead-card {
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    height: 100%;
+  }
+  .lead-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.09) !important; }
+  .lead-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    color: #fff; font-weight: 700; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .lead-meta { font-size: 0.8rem; color: #6c757d; }
+  .action-btn { font-size: 0.78rem; padding: 4px 10px; border-radius: 6px; font-weight: 500; }
+
+  /* ─── Add-lead sidebar card ─── */
+  .add-card { border-radius: 12px; border: 1px solid #e9ecef; position: sticky; top: 70px; }
+
+  /* ─── Filter bar ─── */
+  #filter-bar select { font-size: 0.85rem; }
+
+  /* ─── Empty state ─── */
+  .empty-state { padding: 60px 0; }
+
+  /* ─── Grid placeholder shimmer ─── */
+  .loading-text { color: #6c757d; font-size: 0.9rem; }
+</style>
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold">Leads</h4>
+    <small class="text-muted" id="leads-count">Loading…</small>
   </div>
 </div>
 
-<div class="row" style="gap:1rem;">
-  <div class="col-12 col-md-12">
+<div class="row g-4">
 
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Add Lead</h5>
-        <form id="add-lead-form">
-          <div class="mb-2">
-            <input id="lead-name" name="name" class="form-control" placeholder="Lead name" required>
-          </div>
-          <div class="mb-2">
-            <select id="lead-location" name="location_id" class="form-select">
-              <option value="">Select location</option>
-            </select>
-          </div>
-          <div class="mb-2">
-            <input id="lead-indiamart" name="indiamart_link" class="form-control" placeholder="IndiaMART link (optional)">
-          </div>
-          <div class="mb-2">
-            <select id="lead-deal-status" name="deal_status" class="form-select">
-              {% for s in deal_choices %}
-                <option value="{{ s }}">{{ s }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="mb-2">
-            <input id="lead-address" name="address" class="form-control" placeholder="Address (optional)">
-          </div>
-          <div class="mb-2">
-            <textarea id="lead-comments" name="comments" class="form-control" rows="2" placeholder="Comments"></textarea>
-          </div>
-          <button class="btn btn-primary" type="submit">Add Lead</button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-12 col-md-12">
-    <div class="card">
-      <div class="card-body">
-        <div class="d-flex mb-2 align-items-center">
-          <h5 class="me-3">Leads <small id="current-location-name">(All)</small></h5>
-
-          <div class="ms-auto d-flex" style="gap:0.5rem; align-items:center;">
-            <!-- Location filter -->
-            <div style="width:220px;">
-              <select id="filter-location" class="form-select">
-                <option value="">All locations</option>
-              </select>
-            </div>
-
-            <!-- Deal status multi-select filter -->
-            <div style="width:260px;">
-              <select id="filter-deal-status" class="form-select" multiple size="3" title="Filter by deal status">
-                <!-- options populated by JS from DEAL_CHOICES -->
-              </select>
-            </div>
-
-            <!-- Clear filters button -->
-            <div>
-              <button id="clear-filters" class="btn btn-outline-secondary btn-sm" title="Clear filters">Clear</button>
-            </div>
-          </div>
+  <!-- ─── Add Lead sidebar ─── -->
+  <div class="col-12 col-lg-3">
+    <div class="card shadow-sm add-card p-3">
+      <h6 class="fw-bold mb-3"><i class="bi bi-person-plus me-1 text-primary"></i>Add Lead</h6>
+      <form id="add-lead-form">
+        <div class="mb-2">
+          <input id="lead-name" name="name" class="form-control form-control-sm" placeholder="Lead name *" required>
         </div>
-
-        <div class="table-responsive d-none d-md-block">
-        <table class="table table-sm" id="leads-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Location</th>
-              <th>IndiaMART</th>
-              <th>Deal Status</th>
-              <th class="col-address">Address</th>
-              <th>Comments</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-<!-- Mobile: cards view (visible only on small screens) -->
-      <div id="leads-cards" class="d-block d-md-none" style="display:block; margin-top:0.5rem;"></div>
-
-
-      </div>
+        <div class="mb-2">
+          <select id="lead-location" name="location_id" class="form-select form-select-sm">
+            <option value="">Select location</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <input id="lead-indiamart" name="indiamart_link" class="form-control form-control-sm" placeholder="IndiaMART link (optional)">
+        </div>
+        <div class="mb-2">
+          <select id="lead-deal-status" name="deal_status" class="form-select form-select-sm">
+            {% for s in deal_choices %}
+              <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-2">
+          <input id="lead-address" name="address" class="form-control form-control-sm" placeholder="Address (optional)">
+        </div>
+        <div class="mb-2">
+          <textarea id="lead-comments" name="comments" class="form-control form-control-sm" rows="2" placeholder="Comments"></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm w-100" type="submit">
+          <i class="bi bi-plus-lg me-1"></i>Add Lead
+        </button>
+      </form>
     </div>
   </div>
+
+  <!-- ─── Leads grid ─── -->
+  <div class="col-12 col-lg-9">
+
+    <!-- Filter bar -->
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center" id="filter-bar">
+      <select id="filter-location" class="form-select" style="max-width:200px;">
+        <option value="">All locations</option>
+      </select>
+      <select id="filter-deal-status" class="form-select" multiple size="1" style="max-width:220px;" title="Ctrl+click to multi-select">
+        <!-- populated by JS -->
+      </select>
+      <button id="clear-filters" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-x-circle me-1"></i>Clear
+      </button>
+      <!-- live name search -->
+      <div class="ms-auto" style="max-width:220px;">
+        <div class="input-group input-group-sm shadow-sm">
+          <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+          <input type="text" id="lead-search" class="form-control border-start-0 ps-0" placeholder="Search name…">
+        </div>
+      </div>
+    </div>
+
+    <!-- Cards container -->
+    <div id="leads-grid" class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch">
+      <div class="col-12 text-center loading-text py-5">
+        <div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading leads…
+      </div>
+    </div>
+    <div id="leads-empty" class="text-center text-muted empty-state d-none">
+      <i class="bi bi-person-x fs-1 d-block mb-2"></i>No leads found.
+    </div>
+
+    <!-- Hidden legacy table body (keeps existing JS logic working) -->
+    <table id="leads-table" class="d-none"><tbody></tbody></table>
+    <div id="leads-cards" class="d-none"></div>
+    <span id="current-location-name" class="d-none"></span>
+
+  </div>
 </div>
-
-<!-- expose server-side choices to JS and load the leads script -->
-<script>
-  // JSON.parse wrapper ensures valid JS even with special characters
-  const DEAL_CHOICES = JSON.parse('{{ deal_choices | tojson | safe }}');
-</script>
-<script src="{{ url_for('static', filename='/leads.js') }}"></script>
-
-
 
 <!-- Edit Lead Modal -->
 <div class="modal fade" id="editLeadModal" tabindex="-1" aria-labelledby="editLeadModalLabel" aria-hidden="true">
@@ -120,30 +142,30 @@
         <div class="modal-body">
           <input type="hidden" id="edit-lead-id">
           <div class="mb-2">
-            <label class="form-label">Name</label>
+            <label class="form-label fw-semibold">Name</label>
             <input id="edit-lead-name" class="form-control" required>
           </div>
           <div class="mb-2">
-            <label class="form-label">Location</label>
+            <label class="form-label fw-semibold">Location</label>
             <select id="edit-lead-location" class="form-select">
               <option value="">Select location</option>
             </select>
           </div>
           <div class="mb-2">
-            <label class="form-label">IndiaMART Link</label>
-            <input id="edit-lead-indiamart" class="form-control">
+            <label class="form-label fw-semibold">IndiaMART Link</label>
+            <input id="edit-lead-indiamart" class="form-control" placeholder="https://…">
           </div>
           <div class="mb-2">
-            <label class="form-label">Deal Status</label>
+            <label class="form-label fw-semibold">Deal Status</label>
             <select id="edit-lead-status" class="form-select"></select>
           </div>
           <div class="mb-2">
-            <label class="form-label">Address</label>
+            <label class="form-label fw-semibold">Address</label>
             <input id="edit-lead-address" class="form-control">
           </div>
           <div class="mb-2">
-            <label class="form-label">Comments</label>
-            <input id="edit-lead-comments" class="form-control">
+            <label class="form-label fw-semibold">Comments</label>
+            <textarea id="edit-lead-comments" class="form-control" rows="2"></textarea>
           </div>
         </div>
         <div class="modal-footer">
@@ -155,7 +177,9 @@
   </div>
 </div>
 
-
-
+<script>
+  const DEAL_CHOICES = JSON.parse('{{ deal_choices | tojson | safe }}');
+</script>
+<script src="{{ url_for('static', filename='/leads.js') }}"></script>
 
 {% endblock %}

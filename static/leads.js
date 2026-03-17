@@ -86,7 +86,9 @@ document.addEventListener("DOMContentLoaded", function() {
     const qs = params.toString();
     if (qs) url += `?${qs}`;
 
-    // show loading row
+    const grid = document.getElementById("leads-grid");
+    if (grid) grid.innerHTML = `<div class="col-12 text-center loading-text py-5"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading…</div>`;
+    // keep legacy compat
     leadsTableBody.innerHTML = `<tr><td colspan="7">Loading...</td></tr>`;
 
     fetch(url, { credentials: 'same-origin' })
@@ -100,6 +102,7 @@ document.addEventListener("DOMContentLoaded", function() {
       })
       .catch(err => {
         console.error("loadLeads error:", err);
+        if (grid) grid.innerHTML = `<div class="col-12 text-center text-danger py-4">Error loading leads</div>`;
         leadsTableBody.innerHTML = `<tr><td colspan="7" class="text-danger">Error loading leads</td></tr>`;
       });
   }
@@ -107,117 +110,106 @@ document.addEventListener("DOMContentLoaded", function() {
   // --- Render rows with Edit + Delete actions ---
 // --- Render rows with Edit + Delete actions (and mobile cards) ---
 function renderLeadsRows(leads) {
-  // Table body (desktop)
   leadsTableBody.innerHTML = "";
-  // Cards container (mobile)
   const cardsContainer = document.getElementById("leads-cards");
   if (cardsContainer) cardsContainer.innerHTML = "";
 
+  const grid = document.getElementById("leads-grid");
+  const emptyEl = document.getElementById("leads-empty");
+  const countEl = document.getElementById("leads-count");
+
+  if (grid) grid.innerHTML = "";
+
   if (!Array.isArray(leads) || leads.length === 0) {
-    // Table fallback
     leadsTableBody.innerHTML = `<tr><td colspan="7" class="text-muted">No leads found</td></tr>`;
-    // Cards fallback
-    if (cardsContainer) {
-      const empty = document.createElement("div");
-      empty.className = "text-muted";
-      empty.textContent = "No leads found";
-      cardsContainer.appendChild(empty);
-    }
+    if (grid) grid.classList.add("d-none");
+    if (emptyEl) emptyEl.classList.remove("d-none");
+    if (countEl) countEl.textContent = "0 leads";
     return;
   }
 
-  // Helper to build card DOM for mobile
-  function buildCard(lead) {
-    const card = document.createElement("div");
-    card.className = "lead-card";
+  if (grid) grid.classList.remove("d-none");
+  if (emptyEl) emptyEl.classList.add("d-none");
+  if (countEl) countEl.textContent = `${leads.length} lead${leads.length !== 1 ? "s" : ""}`;
 
-    // top row: Name + Deal status
-    const top = document.createElement("div");
-    top.className = "lead-row";
-    const nameDiv = document.createElement("div");
-    nameDiv.innerHTML = `<strong>${escapeHtml(lead.name || "")}</strong>`;
-    const statusDiv = document.createElement("div");
-    statusDiv.innerHTML = `<small>${escapeHtml(lead.deal_status || "")}</small>`;
-    top.appendChild(nameDiv);
-    top.appendChild(statusDiv);
-
-    // middle: location, indiamart link, address
-    const meta = document.createElement("div");
-    meta.className = "lead-meta";
-    const locationText = lead.location_name ? `<div><strong>Location:</strong> ${escapeHtml(lead.location_name)}</div>` : "";
-    const linkText = lead.indiamart_link ? `<div><strong>IndiaMART:</strong> <a href="${escapeAttr(lead.indiamart_link)}" target="_blank" rel="noopener noreferrer">Link</a></div>` : "";
-    const addressText = lead.address ? `<div><strong>Address:</strong> ${escapeHtml(lead.address)}</div>` : "";
-    const commentsText = lead.comments ? `<div><strong>Comments:</strong> ${escapeHtml(lead.comments)}</div>` : "";
-    meta.innerHTML = locationText + linkText + addressText + commentsText;
-
-    // actions row: Edit + Delete (reuse existing handlers by creating buttons)
-    const actions = document.createElement("div");
-    actions.className = "lead-actions";
-
-    const editBtn = document.createElement("button");
-    editBtn.className = "btn btn-sm btn-outline-primary";
-    editBtn.textContent = "Edit";
-    editBtn.addEventListener("click", () => {
-      // create a temporary table row and invoke startInlineEdit to reuse logic:
-      // create a fake <tr> and call startInlineEdit — then swap the cards after save by reload
-      // Simpler: call startInlineEdit by finding the corresponding existing table row if present
-        if (window.innerWidth < 768) {
-          openEditModal(lead);
-        } else {
-      // Desktop → inline edit
-        const tableRow = leadsTableBody.querySelector(`tr[data-lead-id="${lead.id}"]`);
-        if (tableRow) startInlineEdit(tableRow, lead);
-        }
-      });
-
-    const delBtn = document.createElement("button");
-    delBtn.className = "btn btn-sm btn-outline-danger";
-    delBtn.textContent = "Delete";
-    delBtn.addEventListener("click", () => handleDeleteLead(lead.id));
-
-    actions.appendChild(editBtn);
-    actions.appendChild(delBtn);
-
-    card.appendChild(top);
-    card.appendChild(meta);
-    card.appendChild(actions);
-    return card;
+  // Status badge helper
+  function statusBadge(s) {
+    const m = {
+      "New": "status-new",
+      "Contacted": "status-contacted",
+      "Interested": "status-interested",
+      "Not Interested": "status-not-interested",
+      "Converted": "status-converted"
+    };
+    const cls = m[s] || "status-default";
+    return `<span class="badge-status ${cls}">${escapeHtml(s || '—')}</span>`;
   }
 
-  // Build table rows and cards
   leads.forEach(lead => {
-    // --- Table row (desktop)
+    // ── Grid card ──
+    if (grid) {
+      const col = document.createElement("div");
+      col.className = "col lead-col";
+      col.dataset.name = (lead.name || "").toLowerCase();
+
+      const avatarLetter = (lead.name || "?")[0].toUpperCase();
+      col.innerHTML = `
+        <div class="card lead-card shadow-sm p-3">
+          <div class="d-flex align-items-start gap-3 mb-2">
+            <div class="lead-avatar">${escapeHtml(avatarLetter)}</div>
+            <div class="flex-grow-1 min-w-0">
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
+                <h6 class="mb-0 fw-bold text-truncate" style="max-width:180px;" title="${escapeAttr(lead.name)}">${escapeHtml(lead.name)}</h6>
+                ${statusBadge(lead.deal_status)}
+              </div>
+              <div class="lead-meta mt-1 d-flex flex-wrap gap-2">
+                ${lead.location_name ? `<span><i class="bi bi-geo-alt me-1"></i>${escapeHtml(lead.location_name)}</span>` : ""}
+                ${lead.indiamart_link ? `<a href="${escapeAttr(lead.indiamart_link)}" target="_blank" class="text-decoration-none"><i class="bi bi-link-45deg me-1"></i>IndiaMART</a>` : ""}
+              </div>
+              ${lead.address ? `<div class="lead-meta mt-1 text-truncate" title="${escapeAttr(lead.address)}"><i class="bi bi-building me-1"></i>${escapeHtml(lead.address)}</div>` : ""}
+              ${lead.comments ? `<div class="lead-meta mt-1 fst-italic text-truncate" title="${escapeAttr(lead.comments)}">${escapeHtml(lead.comments)}</div>` : ""}
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-auto pt-2 border-top">
+            <button class="action-btn btn btn-outline-primary btn-edit">
+              <i class="bi bi-pencil me-1"></i>Edit
+            </button>
+            <button class="action-btn btn btn-outline-danger btn-delete ms-auto">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>`;
+
+      col.querySelector(".btn-edit").addEventListener("click", () => openEditModal(lead));
+      col.querySelector(".btn-delete").addEventListener("click", () => handleDeleteLead(lead.id));
+      grid.appendChild(col);
+    }
+
+    // ── Legacy table row (hidden, but keeps inline-edit logic intact) ──
     const tr = document.createElement("tr");
     tr.dataset.leadId = lead.id;
-
     tr.innerHTML = `
       <td class="cell-name">${escapeHtml(lead.name)}</td>
       <td class="cell-location">${escapeHtml(lead.location_name || "")}</td>
-      <td class="cell-link">${lead.indiamart_link ? `<a href="${escapeAttr(lead.indiamart_link)}" target="_blank" rel="noopener noreferrer">Link</a>` : ""}</td>
+      <td class="cell-link">${lead.indiamart_link ? `<a href="${escapeAttr(lead.indiamart_link)}" target="_blank">Link</a>` : ""}</td>
       <td class="cell-status">${escapeHtml(lead.deal_status || "")}</td>
       <td class="cell-address">${escapeHtml(lead.address || "")}</td>
       <td class="cell-comments">${escapeHtml(lead.comments || "")}</td>
-      <td class="cell-actions">
-        <button class="btn btn-sm btn-outline-primary btn-edit me-1">Edit</button>
-        <button class="btn btn-sm btn-outline-danger btn-delete">Delete</button>
-      </td>
-    `;
-
-    // attach handlers for table buttons
-    const delBtn = tr.querySelector(".btn-delete");
-    const editBtn = tr.querySelector(".btn-edit");
-    delBtn.addEventListener("click", () => handleDeleteLead(lead.id));
-    editBtn.addEventListener("click", () => startInlineEdit(tr, lead));
+      <td class="cell-actions"><button class="btn btn-sm btn-outline-primary btn-edit me-1">Edit</button><button class="btn btn-sm btn-outline-danger btn-delete">Delete</button></td>`;
+    tr.querySelector(".btn-delete").addEventListener("click", () => handleDeleteLead(lead.id));
+    tr.querySelector(".btn-edit").addEventListener("click", () => startInlineEdit(tr, lead));
     leadsTableBody.appendChild(tr);
-
-    // --- Mobile card
-    if (cardsContainer) {
-      const card = buildCard(lead);
-      // attach a data attribute so devtools can inspect mapping
-      card.dataset.leadId = lead.id;
-      cardsContainer.appendChild(card);
-    }
   });
+
+  // Wire live name search
+  const searchInput = document.getElementById("lead-search");
+  if (searchInput) {
+    const cols = grid ? grid.querySelectorAll(".lead-col") : [];
+    const q = (searchInput.value || "").toLowerCase().trim();
+    cols.forEach(col => {
+      col.style.display = (!q || (col.dataset.name || "").includes(q)) ? "" : "none";
+    });
+  }
 }
 
 // --- Mobile Edit Modal ---
@@ -555,6 +547,19 @@ async function startInlineEdit(tr, lead) {
       loadLeads(locVal, locText, getCurrentDealSelections());
     });
   });
+
+  // Live name search listener
+  const leadSearchInput = document.getElementById("lead-search");
+  if (leadSearchInput) {
+    leadSearchInput.addEventListener("input", function() {
+      const q = this.value.toLowerCase().trim();
+      const grid = document.getElementById("leads-grid");
+      if (!grid) return;
+      grid.querySelectorAll(".lead-col").forEach(col => {
+        col.style.display = (!q || (col.dataset.name || "").includes(q)) ? "" : "none";
+      });
+    });
+  }
 
   // initial setup
   populateDealFilter();
