@@ -1,138 +1,170 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h3>{% if collection %}Edit Bulk Payment{% else %}Record Overall Payment{% endif %}</h3>
+<style>
+/* ── Mobile optimisations ── */
+@media (max-width: 575px) {
+  .invoice-table thead th { font-size: 0.75rem; padding: 6px 4px; }
+  .invoice-table td       { font-size: 0.8rem;  padding: 8px 4px; }
+  .invoice-table td.cb-col { width: 32px; padding-left: 8px; }
+  .form-control-lg { font-size: 1.1rem; }
+  .client-info-card { padding: 0.6rem 0.9rem; }
+}
+/* Make checkboxes easier to tap on mobile */
+.invoice-checkbox { width: 20px; height: 20px; cursor: pointer; }
+.invoice-row { cursor: pointer; }
+.invoice-row:active { background: #f0f4ff; }
+</style>
 
-<div class="card p-3 mb-3">
-    <strong>Client:</strong> {{ client.name }}<br>
-    <strong>Address:</strong> {{ client.address or 'N/A' }}<br>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0 fw-bold">
+    {% if collection %}Edit Bulk Payment{% else %}Record Bulk Payment{% endif %}
+  </h4>
+</div>
+
+<!-- Client info -->
+<div class="card bg-light border-0 mb-3 client-info-card p-3">
+  <div class="d-flex align-items-center gap-3">
+    <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0;">
+      {{ client.name[0]|upper }}
+    </div>
+    <div>
+      <div class="fw-bold">{{ client.name }}</div>
+      <div class="text-muted small">{{ client.address or 'No address' }}</div>
+    </div>
+  </div>
 </div>
 
 <form method="post" class="card p-3 shadow-sm">
-    <div class="mb-3">
-        <label class="form-label">Date</label>
-        <input type="date" name="date" class="form-control" value="{{ current_date }}" required>
-    </div>
 
-    <div class="mb-3">
-        <label class="form-label fw-bold">Select Invoices to Pay</label>
-        <div class="table-responsive border rounded p-2 bg-light" style="max-height: 300px; overflow-y: auto;">
-            <table class="table table-sm table-hover mb-0">
-                <thead class="table-light sticky-top">
-                    <tr>
-                        <th style="width: 40px;"><input type="checkbox" id="select_all_invoices" class="form-check-input"></th>
-                        <th>Inv #</th>
-                        <th>Date</th>
-                        <th class="text-end">Balance (₹)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in pending_invoices %}
-                    {% set amt_to_pay = (s.balance_due() if s.id not in linked_sale_ids else collection.payments | selectattr('sale_id', 'equalto', s.id) | map(attribute='amount') | first or 0) %}
-                    <tr>
-                        <td>
-                            <input type="checkbox" name="invoice_ids" value="{{ s.id }}" 
-                                   data-balance="{{ amt_to_pay }}" 
-                                   {% if linked_sale_ids and s.id in linked_sale_ids %}checked{% endif %}
-                                   class="form-check-input invoice-checkbox">
-                        </td>
-                        <td>{{ s.id }}</td>
-                        <td>{{ s.date }}</td>
-                        <td class="text-end">
-                            {% if linked_sale_ids and s.id in linked_sale_ids %}
-                                <span class="text-success fw-bold">(Paid)</span> {{ "{:,.2f}".format(amt_to_pay) }}
-                            {% else %}
-                                {{ "{:,.2f}".format(s.balance_due()) }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="4" class="text-center text-muted">No pending invoices found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="form-text mt-1">If no invoices are selected, this will be recorded as a general advance.</div>
+  <!-- Date + Mode in one row on mobile -->
+  <div class="row g-2 mb-3">
+    <div class="col-6">
+      <label class="form-label fw-semibold small">Date</label>
+      <input type="date" name="date" class="form-control" value="{{ current_date }}" required>
     </div>
+    <div class="col-6">
+      <label class="form-label fw-semibold small">Payment Mode</label>
+      <select name="mode" class="form-select">
+        <option {% if collection and collection.mode == 'Cash' %}selected{% endif %}>Cash</option>
+        <option {% if collection and collection.mode == 'Bank Transfer / NEFT' %}selected{% endif %}>Bank Transfer / NEFT</option>
+        <option {% if collection and collection.mode == 'UPI / GPay' %}selected{% endif %}>UPI / GPay</option>
+        <option {% if collection and collection.mode == 'Cheque' %}selected{% endif %}>Cheque</option>
+        <option {% if collection and collection.mode == 'Other' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+  </div>
 
-    <div class="mb-3">
-        <label class="form-label fw-bold">Total Amount Received (₹)</label>
-        <input type="number" step="0.01" name="amount" id="total_amount" 
-               class="form-control form-control-lg text-primary fw-bold" 
-               value="{{ "{:.2f}".format(collection.amount) if collection else '' }}"
-               placeholder="0.00" required autofocus>
-        <div id="selected_count_text" class="form-text text-success fw-bold" style="display:none;">
-            Sum of <span id="selected_count">0</span> selected invoice(s).
-        </div>
+  <!-- Invoice selection -->
+  <div class="mb-3">
+    <label class="form-label fw-bold">Select Invoices to Pay</label>
+    <div class="border rounded bg-light" style="max-height:280px;overflow-y:auto;">
+      <table class="table table-sm table-hover mb-0 invoice-table">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th class="cb-col"><input type="checkbox" id="select_all_invoices" class="invoice-checkbox"></th>
+            <th>Inv #</th>
+            <th>Date</th>
+            <th class="text-end">Balance (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in pending_invoices %}
+          {% set amt_to_pay = (s.balance_due() if s.id not in linked_sale_ids else collection.payments | selectattr('sale_id', 'equalto', s.id) | map(attribute='amount') | first or 0) %}
+          <tr class="invoice-row" onclick="toggleRow(this)">
+            <td class="cb-col" onclick="event.stopPropagation()">
+              <input type="checkbox" name="invoice_ids" value="{{ s.id }}"
+                     data-balance="{{ amt_to_pay }}"
+                     {% if linked_sale_ids and s.id in linked_sale_ids %}checked{% endif %}
+                     class="invoice-checkbox invoice-checkbox-item">
+            </td>
+            <td class="fw-bold">#{{ s.id }}</td>
+            <td class="text-muted">{{ s.date }}</td>
+            <td class="text-end">
+              {% if linked_sale_ids and s.id in linked_sale_ids %}
+                <span class="text-success fw-bold">Paid</span> {{ "{:,.2f}".format(amt_to_pay) }}
+              {% else %}
+                {{ "{:,.2f}".format(s.balance_due()) }}
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-center text-muted py-3">No pending invoices.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    <div class="form-text mt-1">Tap a row to select. No invoices selected = general advance.</div>
+  </div>
 
-    <div class="mb-3">
-        <label class="form-label">Payment Mode</label>
-        <select name="mode" class="form-select">
-            <option {% if collection and collection.mode == 'Cash' %}selected{% endif %}>Cash</option>
-            <option {% if collection and collection.mode == 'Bank Transfer / NEFT' %}selected{% endif %}>Bank Transfer / NEFT</option>
-            <option {% if collection and collection.mode == 'UPI / GPay' %}selected{% endif %}>UPI / GPay</option>
-            <option {% if collection and collection.mode == 'Cheque' %}selected{% endif %}>Cheque</option>
-            <option {% if collection and collection.mode == 'Other' %}selected{% endif %}>Other</option>
-        </select>
+  <!-- Amount -->
+  <div class="mb-3">
+    <label class="form-label fw-bold">Total Amount Received (₹)</label>
+    <input type="number" step="0.01" name="amount" id="total_amount"
+           class="form-control form-control-lg text-primary fw-bold"
+           value="{{ '{:.2f}'.format(collection.amount) if collection else '' }}"
+           placeholder="0.00" required>
+    <div id="selected_count_text" class="form-text text-success fw-bold mt-1" style="display:none;">
+      Sum of <span id="selected_count">0</span> selected invoice(s).
     </div>
+  </div>
 
-    <div class="mb-3">
-        <label class="form-label">Notes</label>
-        <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Payment for March Invoices, Advance, etc.">{{ collection.notes if collection else '' }}</textarea>
-    </div>
+  <!-- Notes -->
+  <div class="mb-3">
+    <label class="form-label">Notes</label>
+    <textarea name="notes" class="form-control" rows="2"
+              placeholder="e.g. Payment for March Invoices, Advance…">{{ collection.notes if collection else '' }}</textarea>
+  </div>
 
-    <div class="d-flex gap-2">
-        <button class="btn btn-primary px-4">{% if collection %}Update Payment{% else %}Save Collection{% endif %}</button>
-        <a href="{{ url_for('party_ledger', party_type='client', name=client.name) }}" class="btn btn-outline-secondary">Cancel</a>
-    </div>
+  <!-- Actions -->
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary flex-grow-1">
+      <i class="bi bi-check-lg me-1"></i>
+      {% if collection %}Update Payment{% else %}Save Collection{% endif %}
+    </button>
+    <a href="{{ url_for('party_ledger', party_type='client', name=client.name) }}" class="btn btn-outline-secondary">
+      Cancel
+    </a>
+  </div>
+
 </form>
 
 <script>
+function toggleRow(tr) {
+  const cb = tr.querySelector('.invoice-checkbox-item');
+  if (cb) { cb.checked = !cb.checked; calculateTotal(); }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    const checkboxes = document.querySelectorAll('.invoice-checkbox');
-    const amountInput = document.getElementById('total_amount');
-    const selectAll = document.getElementById('select_all_invoices');
-    const countSpan = document.getElementById('selected_count');
-    const countText = document.getElementById('selected_count_text');
+  const checkboxes = document.querySelectorAll('.invoice-checkbox-item');
+  const amountInput = document.getElementById('total_amount');
+  const selectAll   = document.getElementById('select_all_invoices');
+  const countSpan   = document.getElementById('selected_count');
+  const countText   = document.getElementById('selected_count_text');
 
-    function calculateTotal() {
-        let total = 0;
-        let count = 0;
-        checkboxes.forEach(cb => {
-            if (cb.checked) {
-                total += parseFloat(cb.getAttribute('data-balance')) || 0;
-                count++;
-            }
-        });
-        
-        // Update input ONLY if user is interacting or if it's the initial calculation
-        if (count > 0) {
-            amountInput.value = total.toFixed(2);
-        }
-        
-        countSpan.textContent = count;
-        countText.style.display = count > 0 ? 'block' : 'none';
-    }
-
+  window.calculateTotal = function() {
+    let total = 0, count = 0;
     checkboxes.forEach(cb => {
-        cb.addEventListener('change', calculateTotal);
+      if (cb.checked) { total += parseFloat(cb.dataset.balance) || 0; count++; }
     });
+    if (count > 0) amountInput.value = total.toFixed(2);
+    countSpan.textContent = count;
+    countText.style.display = count > 0 ? 'block' : 'none';
+  };
 
-    if (selectAll) {
-        selectAll.addEventListener('change', function() {
-            checkboxes.forEach(cb => cb.checked = selectAll.checked);
-            calculateTotal();
-        });
-    }
-    
-    // Set initial count without overwriting initial value if it's an edit
-    let initialCount = 0;
-    checkboxes.forEach(cb => { if(cb.checked) initialCount++; });
-    countSpan.textContent = initialCount;
-    countText.style.display = initialCount > 0 ? 'block' : 'none';
+  checkboxes.forEach(cb => cb.addEventListener('change', calculateTotal));
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function() {
+      checkboxes.forEach(cb => cb.checked = selectAll.checked);
+      calculateTotal();
+    });
+  }
+
+  let initial = 0;
+  checkboxes.forEach(cb => { if (cb.checked) initial++; });
+  countSpan.textContent = initial;
+  countText.style.display = initial > 0 ? 'block' : 'none';
 });
 </script>
 

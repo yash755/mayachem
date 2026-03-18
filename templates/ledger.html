@@ -1,148 +1,155 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3>{{ party_type }} Ledger: {{ name }}</h3>
-    <div>
-        <button class="btn btn-outline-primary d-print-none" onclick="window.print()">
-            <i class="bi bi-printer"></i> Print Statement
-        </button>
+
+<style>
+/* ── Mobile header ── */
+.ledger-header { flex-wrap: wrap; gap: 0.5rem; }
+.ledger-header h3 { font-size: 1.1rem; margin-bottom: 0; }
+.ledger-header .btn { font-size: 0.8rem; padding: 5px 10px; }
+
+/* ── Summary cards ── */
+.summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
+@media (max-width: 575px) {
+  .summary-row { grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+  .summary-card .card-body { padding: 0.6rem 0.75rem; }
+  .summary-card h4 { font-size: 1rem; }
+  .summary-card .label { font-size: 0.65rem; }
+}
+
+/* ── Table (desktop) ── */
+.ledger-table-wrap { display: block; }
+/* ── Mobile rows ── */
+.ledger-mobile { display: none; }
+
+@media (max-width: 767px) {
+  .ledger-table-wrap { display: none; }
+  .ledger-mobile { display: block; }
+}
+
+/* Mobile transaction card */
+.txn-card {
+  border-left: 4px solid #dee2e6;
+  border-radius: 0 8px 8px 0;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.5rem;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.txn-card.debit  { border-left-color: #dc3545; }
+.txn-card.credit { border-left-color: #198754; }
+.txn-card .txn-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+.txn-card .txn-date { font-size: 0.75rem; color: #6c757d; white-space: nowrap; }
+.txn-card .txn-desc { font-size: 0.85rem; font-weight: 500; flex: 1; }
+.txn-card .txn-amounts { display: flex; gap: 0.5rem; justify-content: space-between; margin-top: 0.35rem; font-size: 0.8rem; }
+.txn-card .txn-debit  { color: #dc3545; font-weight: 600; }
+.txn-card .txn-credit { color: #198754; font-weight: 600; }
+.txn-card .txn-balance { font-weight: 700; color: #212529; }
+.txn-card .txn-actions { margin-top: 0.35rem; font-size: 0.78rem; }
+
+@media print {
+  .btn, .d-print-none { display: none !important; }
+  .card { border: none !important; box-shadow: none !important; }
+  .table-responsive { overflow: visible !important; }
+  .ledger-mobile { display: none !important; }
+  .ledger-table-wrap { display: block !important; }
+}
+</style>
+
+<!-- Header -->
+<div class="d-flex ledger-header justify-content-between align-items-center mb-3">
+    <h3>{{ party_type }} Ledger: <span class="text-primary">{{ name }}</span></h3>
+    <div class="d-flex flex-wrap gap-2 d-print-none">
         {% if party_type == 'Client' %}
-        <a href="{{ url_for('add_client_collection', client_id=client_obj.id) }}" class="btn btn-success d-print-none">
-            <i class="bi bi-wallet2"></i> Record Bulk Payment
+        <a href="{{ url_for('add_client_collection', client_id=client_obj.id) }}" class="btn btn-success">
+            <i class="bi bi-wallet2"></i> <span class="d-none d-sm-inline">Bulk Payment</span>
         </a>
         {% elif party_type == 'Vendor' %}
-        <a href="{{ url_for('add_vendor_collection', vendor_name=name) }}" class="btn btn-success d-print-none">
-            <i class="bi bi-wallet2"></i> Record Bulk Payment
+        <a href="{{ url_for('add_vendor_collection', vendor_name=name) }}" class="btn btn-success">
+            <i class="bi bi-wallet2"></i> <span class="d-none d-sm-inline">Bulk Payment</span>
         </a>
         {% endif %}
-        <a href="{{ url_for('ledger_list') }}" class="btn btn-secondary d-print-none">Back to Search</a>
+        <button class="btn btn-outline-primary" onclick="window.print()">
+            <i class="bi bi-printer"></i> <span class="d-none d-sm-inline">Print</span>
+        </button>
+        <a href="{{ url_for('ledger_list') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Back</span>
+        </a>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card bg-light border-0 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small text-uppercase fw-bold">Total Billed</div>
-                <h4 class="mb-0">₹{{ "{:,.2f}".format(total_billed) }}</h4>
-            </div>
+<!-- Summary cards -->
+<div class="summary-row mb-3">
+    <div class="card shadow-sm summary-card">
+        <div class="card-body">
+            <div class="text-muted small text-uppercase fw-bold label">Total Billed</div>
+            <h4 class="mb-0">₹{{ "{:,.2f}".format(total_billed) }}</h4>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-light border-0 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small text-uppercase fw-bold">Total Paid</div>
-                <h4 class="mb-0">₹{{ "{:,.2f}".format(total_paid) }}</h4>
-            </div>
+    <div class="card shadow-sm summary-card">
+        <div class="card-body">
+            <div class="text-muted small text-uppercase fw-bold label">Total Paid</div>
+            <h4 class="mb-0">₹{{ "{:,.2f}".format(total_paid) }}</h4>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card {{ 'bg-danger text-white' if net_balance > 0 else 'bg-success text-white' }} border-0 shadow-sm">
-            <div class="card-body">
-                <div class="text-opacity-75 small text-uppercase fw-bold">Net Balance Due</div>
-                <h4 class="mb-0">₹{{ "{:,.2f}".format(net_balance) }}</h4>
-            </div>
+    <div class="card {{ 'bg-danger text-white' if net_balance > 0 else 'bg-success text-white' }} shadow-sm summary-card">
+        <div class="card-body">
+            <div class="text-opacity-75 small text-uppercase fw-bold label">Balance Due</div>
+            <h4 class="mb-0">₹{{ "{:,.2f}".format(net_balance) }}</h4>
         </div>
     </div>
 </div>
 
-<div class="card shadow-sm">
+<!-- ══ DESKTOP TABLE ══ -->
+<div class="card shadow-sm ledger-table-wrap">
     <div class="table-responsive">
         <table class="table table-hover mb-0 align-middle">
-                <thead>
-                    <tr>
-                        <th class="ps-4">Date</th>
-                        {% if is_multi %}
-                        <th>Party</th>
-                        {% endif %}
-                        <th>Description</th>
-                        <th class="text-end">Debit (₹)</th>
-                        <th class="text-end">Credit (₹)</th>
-                        <th class="text-end pe-4">Balance (₹)</th>
-                    </tr>
-                </thead>
+            <thead>
+                <tr>
+                    <th class="ps-4">Date</th>
+                    {% if is_multi %}<th>Party</th>{% endif %}
+                    <th>Description</th>
+                    <th class="text-end">Debit (₹)</th>
+                    <th class="text-end">Credit (₹)</th>
+                    <th class="text-end pe-4">Balance (₹)</th>
+                </tr>
+            </thead>
             <tbody>
                 {% if not transactions %}
-                <tr>
-                    <td colspan="5" class="text-center py-4 text-muted">No transactions found for this party.</td>
-                </tr>
+                <tr><td colspan="5" class="text-center py-4 text-muted">No transactions found.</td></tr>
                 {% endif %}
                 {% for t in transactions %}
                 <tr>
                     <td class="ps-4 text-nowrap">
-                        {% if t.date %}
-                        {{ t.date.strftime('%d-%m-%y') }}
-                        {% else %}
-                        <span class="text-muted small">Opening</span>
-                        {% endif %}
+                        {% if t.date %}{{ t.date.strftime('%d-%m-%y') }}
+                        {% else %}<span class="text-muted small">Opening</span>{% endif %}
                     </td>
-                    {% if is_multi %}
-                    <td class="fw-bold text-primary small">{{ t.party_name }}</td>
-                    {% endif %}
+                    {% if is_multi %}<td class="fw-bold text-primary small">{{ t.party_name }}</td>{% endif %}
                     <td>
                         <div class="d-flex align-items-center flex-wrap">
-                            {% if t.ref %}
-                            <a href="{{ t.ref }}" class="text-decoration-none me-2">{{ t.desc }}</a>
-                            {% elif t.collection_id %}
-                            <span class="me-2">{{ t.desc }}</span>
-                            {% else %}
-                            <span class="me-2">{{ t.desc }}</span>
-                            {% endif %}
-
+                            {% if t.ref %}<a href="{{ t.ref }}" class="text-decoration-none me-2">{{ t.desc }}</a>
+                            {% else %}<span class="me-2">{{ t.desc }}</span>{% endif %}
                             {% if t.payment_status == 'Paid' %}
-                                <span class="badge bg-success" title="Fully Paid">
-                                    <i class="bi bi-check-circle-fill"></i> Paid
-                                </span>
+                                <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Paid</span>
                             {% elif t.payment_status == 'Partial' %}
-                                <span class="badge bg-warning text-dark me-2" title="Partially Paid">
-                                    <i class="bi bi-dash-circle-dotted"></i> Partial
-                                </span>
-                                {% if t.sale_id %}
-                                <a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="small text-primary d-print-none text-decoration-none">
-                                    <i class="bi bi-plus-circle"></i> Add Receipt
-                                </a>
-                                {% elif t.purchase_id %}
-                                <a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="small text-primary d-print-none text-decoration-none">
-                                    <i class="bi bi-plus-circle"></i> Record Payment
-                                </a>
-                                {% endif %}
+                                <span class="badge bg-warning text-dark me-2"><i class="bi bi-dash-circle-dotted"></i> Partial</span>
+                                {% if t.sale_id %}<a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="small text-primary d-print-none"><i class="bi bi-plus-circle"></i> Add Receipt</a>
+                                {% elif t.purchase_id %}<a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="small text-primary d-print-none"><i class="bi bi-plus-circle"></i> Record Payment</a>{% endif %}
                             {% elif t.payment_status == 'Pending' %}
-                                <span class="badge bg-danger me-2" title="Unpaid">
-                                    <i class="bi bi-exclamation-circle"></i> Pending
-                                </span>
-                                {% if t.sale_id %}
-                                <a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="small text-primary d-print-none text-decoration-none">
-                                    <i class="bi bi-plus-circle"></i> Add Receipt
-                                </a>
-                                {% elif t.purchase_id %}
-                                <a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="small text-primary d-print-none text-decoration-none">
-                                    <i class="bi bi-plus-circle"></i> Record Payment
-                                </a>
-                                {% endif %}
+                                <span class="badge bg-danger me-2"><i class="bi bi-exclamation-circle"></i> Pending</span>
+                                {% if t.sale_id %}<a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="small text-primary d-print-none"><i class="bi bi-plus-circle"></i> Add Receipt</a>
+                                {% elif t.purchase_id %}<a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="small text-primary d-print-none"><i class="bi bi-plus-circle"></i> Record Payment</a>{% endif %}
                             {% endif %}
                         </div>
-
                         {% if t.collection_id %}
                         <div class="d-print-none small mt-1">
-                            <a href="{{ url_for('edit_client_collection', collection_id=t.collection_id) }}" class="text-primary me-2">
-                                <i class="bi bi-pencil-square"></i> Edit
-                            </a>
-                            <a href="{{ url_for('delete_client_collection', collection_id=t.collection_id) }}"
-                               class="text-danger" onclick="return confirm('Delete this bulk payment? Linked invoice payments will be reverted.')">
-                                <i class="bi bi-trash"></i> Delete
-                            </a>
+                            <a href="{{ url_for('edit_client_collection', collection_id=t.collection_id) }}" class="text-primary me-2"><i class="bi bi-pencil-square"></i> Edit</a>
+                            <a href="{{ url_for('delete_client_collection', collection_id=t.collection_id) }}" class="text-danger" onclick="return confirm('Delete this bulk payment?')"><i class="bi bi-trash"></i> Delete</a>
                         </div>
                         {% endif %}
-
                         {% if t.vendor_collection_id %}
                         <div class="d-print-none small mt-1">
-                            <a href="{{ url_for('edit_vendor_collection', collection_id=t.vendor_collection_id) }}" class="text-primary me-2">
-                                <i class="bi bi-pencil-square"></i> Edit
-                            </a>
-                            <a href="{{ url_for('delete_vendor_collection', collection_id=t.vendor_collection_id) }}"
-                               class="text-danger" onclick="return confirm('Delete this bulk payment? Linked invoice payments will be reverted.')">
-                                <i class="bi bi-trash"></i> Delete
-                            </a>
+                            <a href="{{ url_for('edit_vendor_collection', collection_id=t.vendor_collection_id) }}" class="text-primary me-2"><i class="bi bi-pencil-square"></i> Edit</a>
+                            <a href="{{ url_for('delete_vendor_collection', collection_id=t.vendor_collection_id) }}" class="text-danger" onclick="return confirm('Delete this bulk payment?')"><i class="bi bi-trash"></i> Delete</a>
                         </div>
                         {% endif %}
                     </td>
@@ -152,7 +159,7 @@
                     <td class="text-end {{ 'text-success fw-bold' if t.credit > 0 else 'text-muted' }}">
                         {{ "₹{:,.2f}".format(t.credit) if t.credit > 0 else '-' }}
                     </td>
-                    <td class="text-end fw-bold">₹{{ "{:,.2f}".format(t.balance) }}</td>
+                    <td class="text-end fw-bold pe-4">₹{{ "{:,.2f}".format(t.balance) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -160,12 +167,60 @@
     </div>
 </div>
 
-<style>
-@media print {
-    .btn, .d-print-none { display: none !important; }
-    .card { border: none !important; box-shadow: none !important; }
-    .table-dark { background-color: #fff !important; color: #000 !important; }
-    .table-responsive { overflow: visible !important; }
-}
-</style>
+<!-- ══ MOBILE CARDS ══ -->
+<div class="ledger-mobile">
+    {% if not transactions %}
+    <div class="text-center text-muted py-4">No transactions found.</div>
+    {% endif %}
+    {% for t in transactions %}
+    {% set is_debit = t.debit > 0 %}
+    <div class="txn-card {{ 'debit' if is_debit else 'credit' }}">
+        <div class="txn-top">
+            <div>
+                <div class="txn-date">
+                    {% if t.date %}{{ t.date.strftime('%d %b %y') }}{% else %}Opening{% endif %}
+                    {% if is_multi %} · <span class="text-primary fw-bold">{{ t.party_name }}</span>{% endif %}
+                </div>
+                <div class="txn-desc">
+                    {% if t.ref %}<a href="{{ t.ref }}" class="text-decoration-none">{{ t.desc }}</a>
+                    {% else %}{{ t.desc }}{% endif %}
+                </div>
+                <!-- Status badge -->
+                {% if t.payment_status == 'Paid' %}
+                    <span class="badge bg-success mt-1"><i class="bi bi-check-circle-fill"></i> Paid</span>
+                {% elif t.payment_status == 'Partial' %}
+                    <span class="badge bg-warning text-dark mt-1">Partial</span>
+                    {% if t.sale_id %}<a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="badge bg-primary text-white ms-1 d-print-none text-decoration-none">+ Receipt</a>
+                    {% elif t.purchase_id %}<a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="badge bg-primary text-white ms-1 d-print-none text-decoration-none">+ Pay</a>{% endif %}
+                {% elif t.payment_status == 'Pending' %}
+                    <span class="badge bg-danger mt-1">Pending</span>
+                    {% if t.sale_id %}<a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="badge bg-primary text-white ms-1 d-print-none text-decoration-none">+ Receipt</a>
+                    {% elif t.purchase_id %}<a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="badge bg-primary text-white ms-1 d-print-none text-decoration-none">+ Pay</a>{% endif %}
+                {% endif %}
+            </div>
+            <div class="text-end">
+                {% if is_debit %}
+                <div class="txn-debit">-₹{{ "{:,.2f}".format(t.debit) }}</div>
+                {% else %}
+                <div class="txn-credit">+₹{{ "{:,.2f}".format(t.credit) }}</div>
+                {% endif %}
+                <div class="txn-balance small">Bal: ₹{{ "{:,.2f}".format(t.balance) }}</div>
+            </div>
+        </div>
+        {% if t.collection_id %}
+        <div class="txn-actions d-print-none">
+            <a href="{{ url_for('edit_client_collection', collection_id=t.collection_id) }}" class="text-primary me-2"><i class="bi bi-pencil-square"></i> Edit</a>
+            <a href="{{ url_for('delete_client_collection', collection_id=t.collection_id) }}" class="text-danger" onclick="return confirm('Delete?')"><i class="bi bi-trash"></i> Delete</a>
+        </div>
+        {% endif %}
+        {% if t.vendor_collection_id %}
+        <div class="txn-actions d-print-none">
+            <a href="{{ url_for('edit_vendor_collection', collection_id=t.vendor_collection_id) }}" class="text-primary me-2"><i class="bi bi-pencil-square"></i> Edit</a>
+            <a href="{{ url_for('delete_vendor_collection', collection_id=t.vendor_collection_id) }}" class="text-danger" onclick="return confirm('Delete?')"><i class="bi bi-trash"></i> Delete</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
 {% endblock %}
