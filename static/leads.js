@@ -154,9 +154,9 @@ function renderLeadsRows(leads) {
 
       const avatarLetter = (lead.name || "?")[0].toUpperCase();
       col.innerHTML = `
-        <div class="card lead-card shadow-sm p-3">
-          <div class="d-flex align-items-start gap-3 mb-2">
-            <div class="lead-avatar">${escapeHtml(avatarLetter)}</div>
+        <div class="card lead-card shadow-sm p-3 d-flex flex-column h-100">
+          <div class="d-flex align-items-start gap-3 mb-2 flex-grow-1">
+            <div class="lead-avatar flex-shrink-0">${escapeHtml(avatarLetter)}</div>
             <div class="flex-grow-1 min-w-0">
               <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
                 <h6 class="mb-0 fw-bold text-truncate" style="max-width:180px;" title="${escapeAttr(lead.name)}">${escapeHtml(lead.name)}</h6>
@@ -170,7 +170,7 @@ function renderLeadsRows(leads) {
               ${lead.comments ? `<div class="lead-meta mt-1 fst-italic text-truncate" title="${escapeAttr(lead.comments)}">${escapeHtml(lead.comments)}</div>` : ""}
             </div>
           </div>
-          <div class="d-flex gap-2 mt-auto pt-2 border-top">
+          <div class="d-flex gap-2 pt-2 border-top mt-2">
             <button class="action-btn btn btn-outline-primary btn-edit">
               <i class="bi bi-pencil me-1"></i>Edit
             </button>
