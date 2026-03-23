@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+/* ── Summary grid ── */
+.combined-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
+@media (max-width: 575px) {
+  .combined-summary { gap: 0.4rem; }
+  .combined-summary .card-body { padding: 0.55rem 0.75rem; }
+  .combined-summary h4 { font-size: 0.95rem; }
+  .combined-summary .label { font-size: 0.62rem; }
+}
+
+/* ── Side divider badges ── */
+.side-badge { font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; text-transform: uppercase; letter-spacing: .4px; }
+.side-sale     { background:#dbeafe; color:#1e40af; }
+.side-receipt  { background:#dcfce7; color:#166534; }
+.side-purchase { background:#fef3c7; color:#92400e; }
+.side-payment  { background:#fee2e2; color:#991b1b; }
+.side-client   { background:#e0e7ff; color:#3730a3; }
+
+/* ── Desktop table ── */
+.cledger-table-wrap { display: block; }
+.cledger-mobile     { display: none; }
+@media (max-width: 767px) {
+  .cledger-table-wrap { display: none; }
+  .cledger-mobile     { display: block; }
+}
+
+/* ── Mobile transaction cards ── */
+.txn-card {
+  border-left: 4px solid #dee2e6;
+  border-radius: 0 8px 8px 0;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.5rem;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.txn-card.side-sale-card     { border-left-color: #3b82f6; }
+.txn-card.side-receipt-card  { border-left-color: #22c55e; }
+.txn-card.side-purchase-card { border-left-color: #f59e0b; }
+.txn-card.side-payment-card  { border-left-color: #ef4444; }
+.txn-card .txn-top   { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+.txn-card .txn-date  { font-size: 0.75rem; color: #6c757d; }
+.txn-card .txn-desc  { font-size: 0.85rem; font-weight: 500; flex: 1; }
+.txn-card .txn-amounts { font-size: 0.8rem; margin-top: 0.35rem; display: flex; gap: 0.75rem; justify-content: flex-end; }
+.debit-amt  { color: #dc3545; font-weight: 700; }
+.credit-amt { color: #198754; font-weight: 700; }
+.bal-amt    { font-weight: 700; color: #212529; }
+
+@media print {
+  .btn, .d-print-none { display: none !important; }
+  .cledger-mobile { display: none !important; }
+  .cledger-table-wrap { display: block !important; }
+}
+</style>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold">
+      <span class="badge bg-secondary me-1" style="font-size:0.6rem;vertical-align:middle;">COMBINED</span>
+      {{ name }}
+    </h4>
+    <small class="text-muted">Client + Vendor combined view</small>
+  </div>
+  <div class="d-flex flex-wrap gap-2 d-print-none">
+    {% if has_sales %}
+    <a href="{{ url_for('party_ledger', party_type='client', name=name) }}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-person"></i> Client Ledger
+    </a>
+    {% endif %}
+    {% if has_purchases %}
+    <a href="{{ url_for('party_ledger', party_type='vendor', name=name) }}" class="btn btn-outline-warning btn-sm">
+      <i class="bi bi-shop"></i> Vendor Ledger
+    </a>
+    {% endif %}
+    <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+      <i class="bi bi-printer"></i>
+    </button>
+    <a href="{{ url_for('ledger_list') }}" class="btn btn-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+  </div>
+</div>
+
+<!-- Summary cards: 3-col grid — Receivable | Payable | Net -->
+<div class="combined-summary mb-3">
+  <div class="card border-0 shadow-sm {{ 'bg-danger text-white' if sales_balance > 0 else 'bg-light' }}">
+    <div class="card-body">
+      <div class="text-uppercase fw-bold label" style="font-size:0.65rem;opacity:.8;">They Owe You</div>
+      <h4 class="mb-0">₹{{ "{:,.2f}".format(sales_balance) }}</h4>
+      <div style="font-size:0.7rem;opacity:.7;">Sales ₹{{ "{:,.2f}".format(sales_total) }} · Rcvd ₹{{ "{:,.2f}".format(sales_received) }}</div>
+    </div>
+  </div>
+  <div class="card border-0 shadow-sm {{ 'bg-warning' if purchase_balance > 0 else 'bg-light' }}">
+    <div class="card-body">
+      <div class="text-uppercase fw-bold label" style="font-size:0.65rem;opacity:.8;">You Owe Them</div>
+      <h4 class="mb-0">₹{{ "{:,.2f}".format(purchase_balance) }}</h4>
+      <div style="font-size:0.7rem;opacity:.7;">Purchase ₹{{ "{:,.2f}".format(purchase_total) }} · Paid ₹{{ "{:,.2f}".format(purchase_paid) }}</div>
+    </div>
+  </div>
+  <div class="card border-0 shadow-sm {{ 'bg-success text-white' if net_position > 0 else ('bg-danger text-white' if net_position < 0 else 'bg-light') }}">
+    <div class="card-body">
+      <div class="text-uppercase fw-bold label" style="font-size:0.65rem;opacity:.8;">Net Position</div>
+      <h4 class="mb-0">₹{{ "{:,.2f}".format(net_position|abs) }}</h4>
+      <div style="font-size:0.7rem;opacity:.7;">
+        {% if net_position > 0 %}In your favour{% elif net_position < 0 %}In their favour{% else %}Settled{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="d-flex flex-wrap gap-2 mb-2 d-print-none">
+  <span class="side-badge side-sale">Sale Invoice</span>
+  <span class="side-badge side-receipt">Receipt / Collection</span>
+  <span class="side-badge side-purchase">Purchase Invoice</span>
+  <span class="side-badge side-payment">Payment Made</span>
+</div>
+
+<!-- ══ DESKTOP TABLE ══ -->
+<div class="card shadow-sm cledger-table-wrap">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead>
+        <tr>
+          <th class="ps-3">Date</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th class="text-end">Debit (₹)</th>
+          <th class="text-end">Credit (₹)</th>
+          <th class="text-end pe-3">Net Balance (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if not transactions %}
+        <tr><td colspan="6" class="text-center py-4 text-muted">No transactions found.</td></tr>
+        {% endif %}
+        {% for t in transactions %}
+        <tr>
+          <td class="ps-3 text-nowrap">
+            {% if t.date %}{{ t.date.strftime('%d-%m-%y') }}
+            {% else %}<span class="text-muted small">Opening</span>{% endif %}
+          </td>
+          <td><span class="side-badge side-{{ t.side }}">{{ t.side|replace('_',' ')|title }}</span></td>
+          <td>
+            <div class="d-flex align-items-center flex-wrap gap-1">
+              {% if t.ref %}<a href="{{ t.ref }}" class="text-decoration-none">{{ t.desc }}</a>
+              {% else %}{{ t.desc }}{% endif %}
+              {% if t.get('payment_status') == 'Paid' %}
+                <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Paid</span>
+              {% elif t.get('payment_status') == 'Partial' %}
+                <span class="badge bg-warning text-dark">Partial</span>
+                {% if t.get('sale_id') %}<a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="small text-primary"><i class="bi bi-plus-circle"></i> Receipt</a>{% endif %}
+                {% if t.get('purchase_id') %}<a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="small text-primary"><i class="bi bi-plus-circle"></i> Pay</a>{% endif %}
+              {% elif t.get('payment_status') == 'Pending' %}
+                <span class="badge bg-danger">Pending</span>
+                {% if t.get('sale_id') %}<a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="small text-primary"><i class="bi bi-plus-circle"></i> Receipt</a>{% endif %}
+                {% if t.get('purchase_id') %}<a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="small text-primary"><i class="bi bi-plus-circle"></i> Pay</a>{% endif %}
+              {% endif %}
+            </div>
+          </td>
+          <td class="text-end {{ 'text-danger fw-bold' if t.debit > 0 else 'text-muted' }}">
+            {{ "₹{:,.2f}".format(t.debit) if t.debit > 0 else '-' }}
+          </td>
+          <td class="text-end {{ 'text-success fw-bold' if t.credit > 0 else 'text-muted' }}">
+            {{ "₹{:,.2f}".format(t.credit) if t.credit > 0 else '-' }}
+          </td>
+          <td class="text-end fw-bold pe-3 {{ 'text-success' if t.balance >= 0 else 'text-danger' }}">
+            ₹{{ "{:,.2f}".format(t.balance|abs) }}
+            {% if t.balance > 0 %}<small class="text-muted fw-normal"> CR</small>
+            {% elif t.balance < 0 %}<small class="text-muted fw-normal"> DR</small>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ MOBILE CARDS ══ -->
+<div class="cledger-mobile">
+  {% if not transactions %}
+  <div class="text-center text-muted py-4">No transactions found.</div>
+  {% endif %}
+  {% for t in transactions %}
+  <div class="txn-card side-{{ t.side }}-card">
+    <div class="txn-top">
+      <div class="flex-grow-1">
+        <div class="txn-date">
+          {% if t.date %}{{ t.date.strftime('%d %b %y') }}{% else %}Opening{% endif %}
+          &nbsp;<span class="side-badge side-{{ t.side }}">{{ t.side|replace('_',' ')|title }}</span>
+        </div>
+        <div class="txn-desc">
+          {% if t.ref %}<a href="{{ t.ref }}" class="text-decoration-none text-dark">{{ t.desc }}</a>
+          {% else %}{{ t.desc }}{% endif %}
+        </div>
+        {% if t.get('payment_status') == 'Paid' %}
+          <span class="badge bg-success mt-1">Paid</span>
+        {% elif t.get('payment_status') in ('Partial', 'Pending') %}
+          <span class="badge {{ 'bg-warning text-dark' if t.payment_status == 'Partial' else 'bg-danger' }} mt-1">
+            {{ t.payment_status }}
+          </span>
+          {% if t.get('sale_id') %}<a href="{{ url_for('add_sale_payment', sale_id=t.sale_id) }}" class="badge bg-primary text-white ms-1 text-decoration-none">+ Receipt</a>{% endif %}
+          {% if t.get('purchase_id') %}<a href="{{ url_for('purchase_payments', purchase_id=t.purchase_id) }}" class="badge bg-primary text-white ms-1 text-decoration-none">+ Pay</a>{% endif %}
+        {% endif %}
+      </div>
+      <div class="text-end ms-2">
+        {% if t.debit > 0 %}<div class="debit-amt">-₹{{ "{:,.2f}".format(t.debit) }}</div>
+        {% elif t.credit > 0 %}<div class="credit-amt">+₹{{ "{:,.2f}".format(t.credit) }}</div>{% endif %}
+        <div class="bal-amt small">₹{{ "{:,.2f}".format(t.balance|abs) }}
+          {% if t.balance > 0 %}<span class="text-success">CR</span>{% elif t.balance < 0 %}<span class="text-danger">DR</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

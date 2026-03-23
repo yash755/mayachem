@@ -1329,6 +1329,12 @@ def register_routes(app: Flask) -> None:
                 running += (t["credit"] - t["debit"])
             t["balance"] = round(running, 2)
 
+        # Detect if party exists on the other side (client↔vendor)
+        if party_type == "client":
+            other_side_count = Purchase.query.filter_by(vendor_name=display_name).count()
+        else:
+            other_side_count = Sale.query.filter_by(client_name=display_name).count()
+
         return render_template(
             "ledger.html",
             name=display_name,
@@ -1338,7 +1344,176 @@ def register_routes(app: Flask) -> None:
             total_paid=round(total_paid, 2),
             net_balance=round(running, 2),
             is_multi=is_multi,
-            client_obj=client_obj if party_type == "client" else None
+            client_obj=client_obj if party_type == "client" else None,
+            other_side_count=other_side_count,
+        )
+
+    @app.route("/ledger/combined/<path:name>")
+    def combined_party_ledger(name):
+        """Combined client + vendor ledger for parties that wear both hats."""
+        name = name.strip()
+
+        client_obj = Client.query.filter_by(name=name).first()
+        transactions = []
+
+        # ── CLIENT SIDE (sales = debit, receipts = credit) ──
+        sales_total = 0
+        sales_received = 0
+
+        if client_obj:
+            opening_bal = client_obj.opening_balance or 0.0
+            if opening_bal != 0:
+                transactions.append({
+                    "date": None,
+                    "desc": "Opening Balance (Client)",
+                    "ref": "",
+                    "debit": opening_bal if opening_bal > 0 else 0,
+                    "credit": abs(opening_bal) if opening_bal < 0 else 0,
+                    "side": "client",
+                    "id_for_sort": -999999,
+                })
+
+        sales = Sale.query.filter_by(client_name=name).all()
+        for s in sales:
+            amt = s.total_amount()
+            sales_total += amt
+            bal = s.balance_due()
+            status = "Paid" if bal <= 0 else ("Partial" if bal < amt else "Pending")
+            transactions.append({
+                "date": s.date,
+                "desc": f"Sale Invoice #{s.id}",
+                "ref": f"/sales/{s.id}/edit",
+                "debit": amt,
+                "credit": 0,
+                "side": "sale",
+                "payment_status": status,
+                "sale_id": s.id,
+                "id_for_sort": s.id,
+            })
+            for p in s.payments:
+                if p.collection_id:
+                    continue
+                sales_received += p.amount
+                transactions.append({
+                    "date": p.date,
+                    "desc": f"Receipt (Sale #{s.id})",
+                    "ref": "",
+                    "debit": 0,
+                    "credit": p.amount,
+                    "side": "receipt",
+                    "id_for_sort": p.id,
+                })
+        if client_obj:
+            for c in client_obj.collections:
+                sales_received += c.amount
+                inv_ids = [str(p.sale_id) for p in c.payments]
+                desc = f"Bulk Receipt ({c.mode or 'N/A'})"
+                if inv_ids:
+                    desc += " - Inv: " + ", ".join(inv_ids)
+                transactions.append({
+                    "date": c.date,
+                    "desc": desc,
+                    "ref": "",
+                    "debit": 0,
+                    "credit": c.amount,
+                    "side": "receipt",
+                    "collection_id": c.id,
+                    "id_for_sort": -c.id,
+                })
+
+        # ── VENDOR SIDE (purchases = credit, payments = debit) ──
+        purchase_total = 0
+        purchase_paid = 0
+
+        purchases = Purchase.query.filter_by(vendor_name=name).all()
+        for p_rec in purchases:
+            cost = p_rec.total_cost()
+            purchase_total += cost
+            bal = p_rec.balance_due()
+            status = "Paid" if bal <= 0 else ("Partial" if bal < cost else "Pending")
+            transactions.append({
+                "date": p_rec.date,
+                "desc": f"Purchase Invoice #{p_rec.id}",
+                "ref": f"/purchase/{p_rec.id}/edit",
+                "debit": 0,
+                "credit": cost,
+                "side": "purchase",
+                "payment_status": status,
+                "purchase_id": p_rec.id,
+                "id_for_sort": p_rec.id,
+            })
+            for pay in p_rec.payments:
+                if pay.collection_id:
+                    continue
+                purchase_paid += pay.amount
+                transactions.append({
+                    "date": pay.date,
+                    "desc": f"Payment Made (Purchase #{p_rec.id})",
+                    "ref": "",
+                    "debit": pay.amount,
+                    "credit": 0,
+                    "side": "payment",
+                    "id_for_sort": pay.id,
+                })
+
+        vendor_collections = VendorCollection.query.filter_by(vendor_name=name).all()
+        for vc in vendor_collections:
+            purchase_paid += vc.amount
+            inv_ids = [str(p.purchase_id) for p in vc.payments]
+            desc = f"Bulk Payment ({vc.mode or 'N/A'})"
+            if inv_ids:
+                desc += " - Inv: " + ", ".join(inv_ids)
+            transactions.append({
+                "date": vc.date,
+                "desc": desc,
+                "ref": "",
+                "debit": vc.amount,
+                "credit": 0,
+                "side": "payment",
+                "vendor_collection_id": vc.id,
+                "id_for_sort": -vc.id,
+            })
+
+        # ── Sort & running balance ──
+        def sort_key(t):
+            d = t["date"] or datetime(1900, 1, 1).date()
+            return (d, t.get("id_for_sort", 0))
+
+        transactions.sort(key=sort_key)
+
+        # Net balance: we are owed (sales) minus we owe (purchases)
+        # debit = we are owed / we paid out; credit = we received / we were billed
+        # For combined: treat as: +debit (sale) -credit(purchase) side by side
+        # Running: sale entries debit us (client owes), receipt credits reduce it
+        #          purchase credit them (we owe), payment debit reduces it
+        # Net = receivable_balance - payable_balance
+        running = 0
+        for t in transactions:
+            side = t.get("side", "")
+            if side in ("sale", "receipt", "client"):
+                running += t["debit"] - t["credit"]
+            else:  # purchase, payment
+                running -= t["credit"] - t["debit"]
+            t["balance"] = round(running, 2)
+
+        sales_balance = sales_total - sales_received         # what client owes us
+        purchase_balance = purchase_total - purchase_paid    # what we owe vendor
+        net_position = round(sales_balance - purchase_balance, 2)
+
+        return render_template(
+            "combined_ledger.html",
+            name=name,
+            transactions=transactions,
+            sales_total=round(sales_total, 2),
+            sales_received=round(sales_received, 2),
+            sales_balance=round(sales_balance, 2),
+            purchase_total=round(purchase_total, 2),
+            purchase_paid=round(purchase_paid, 2),
+            purchase_balance=round(purchase_balance, 2),
+            net_position=net_position,
+            client_obj=client_obj,
+            has_sales=bool(sales),
+            has_purchases=bool(purchases),
         )
 
     @app.route("/reports/sales-outstanding")

@@ -77,6 +77,20 @@
     </div>
 </div>
 
+<!-- Combined ledger banner (shows when party is on both sides) -->
+{% if other_side_count and other_side_count > 0 and not is_multi %}
+<div class="alert alert-info d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 mb-3 d-print-none">
+  <span>
+    <i class="bi bi-arrows-collapse me-1"></i>
+    This party also has <strong>{{ other_side_count }} {{ 'sale' if party_type == 'Vendor' else 'purchase' }}{{ 's' if other_side_count != 1 else '' }}</strong> on the
+    {{ 'client' if party_type == 'Vendor' else 'vendor' }} side.
+  </span>
+  <a href="{{ url_for('combined_party_ledger', name=name) }}" class="btn btn-info btn-sm text-white fw-semibold">
+    <i class="bi bi-diagram-2 me-1"></i> View Combined Ledger
+  </a>
+</div>
+{% endif %}
+
 <!-- Summary cards -->
 <div class="summary-row mb-3">
     <div class="card shadow-sm summary-card">
