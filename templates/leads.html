@@ -29,6 +29,9 @@
   }
   .lead-meta { font-size: 0.8rem; color: #6c757d; }
   .action-btn { font-size: 0.78rem; padding: 4px 10px; border-radius: 6px; font-weight: 500; }
+  /* prevent cards from overflowing their grid column */
+  .lead-col { min-width: 0; overflow: hidden; }
+  #leads-grid { overflow: hidden; }
 
   /* ─── Add-lead sidebar card ─── */
   .add-card { border-radius: 12px; border: 1px solid #e9ecef; position: sticky; top: 70px; }

@@ -154,7 +154,7 @@ function renderLeadsRows(leads) {
 
       const avatarLetter = (lead.name || "?")[0].toUpperCase();
       col.innerHTML = `
-        <div class="card lead-card shadow-sm p-3 d-flex flex-column h-100">
+        <div class="card lead-card shadow-sm p-3 d-flex flex-column h-100" style="overflow:hidden;min-width:0;">
           <div class="d-flex align-items-start gap-3 mb-2 flex-grow-1">
             <div class="lead-avatar flex-shrink-0">${escapeHtml(avatarLetter)}</div>
             <div class="flex-grow-1 min-w-0">
@@ -166,7 +166,7 @@ function renderLeadsRows(leads) {
                 ${lead.location_name ? `<span><i class="bi bi-geo-alt me-1"></i>${escapeHtml(lead.location_name)}</span>` : ""}
                 ${lead.indiamart_link ? `<a href="${escapeAttr(lead.indiamart_link)}" target="_blank" class="text-decoration-none"><i class="bi bi-link-45deg me-1"></i>IndiaMART</a>` : ""}
               </div>
-              ${lead.address ? `<div class="lead-meta mt-1 text-truncate" title="${escapeAttr(lead.address)}"><i class="bi bi-building me-1"></i>${escapeHtml(lead.address)}</div>` : ""}
+              ${lead.address ? `<div class="lead-meta mt-1" style="word-break:break-word;"><i class="bi bi-building me-1"></i>${escapeHtml(lead.address)}</div>` : ""}
               ${lead.comments ? `<div class="lead-meta mt-1 fst-italic text-truncate" title="${escapeAttr(lead.comments)}">${escapeHtml(lead.comments)}</div>` : ""}
             </div>
           </div>
