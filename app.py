@@ -408,6 +408,64 @@ class Lead(db.Model):
         return f"<Lead {self.name} @ {self.location_id}>"
 
 
+class Loan(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    loan_type = db.Column(db.String(16), nullable=False)          # "given" or "taken"
+    party_name = db.Column(db.String(200), nullable=False)
+    principal = db.Column(db.Float, nullable=False, default=0.0)
+    interest_rate = db.Column(db.Float, nullable=False, default=0.0)   # % per year
+    date_issued = db.Column(db.Date, nullable=False)
+    due_date = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    is_closed = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    repayments = db.relationship("LoanRepayment", backref="loan", cascade="all, delete-orphan", order_by="LoanRepayment.date")
+
+    def total_repaid(self):
+        return round(sum(r.amount for r in self.repayments), 2)
+
+    def interest_accrued(self):
+        """Simple interest accrued from issue date to today (or due_date if closed)."""
+        if not self.interest_rate or self.interest_rate == 0:
+            return 0.0
+        from datetime import date as date_cls
+        end = self.due_date if (self.is_closed and self.due_date) else date_cls.today()
+        days = (end - self.date_issued).days
+        if days <= 0:
+            return 0.0
+        return round(self.principal * (self.interest_rate / 100) * days / 365, 2)
+
+    def total_due(self):
+        return round(self.principal + self.interest_accrued(), 2)
+
+    def outstanding(self):
+        return round(self.total_due() - self.total_repaid(), 2)
+
+    def status(self):
+        if self.is_closed:
+            return "Closed"
+        from datetime import date as date_cls
+        if self.due_date and date_cls.today() > self.due_date:
+            return "Overdue"
+        return "Active"
+
+    def __repr__(self):
+        return f"<Loan {self.loan_type} {self.party_name} ₹{self.principal}>"
+
+
+class LoanRepayment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    loan_id = db.Column(db.Integer, db.ForeignKey("loan.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    mode = db.Column(db.String(50), nullable=True)     # Cash / Bank / UPI
+    notes = db.Column(db.String(250), nullable=True)
+
+    def __repr__(self):
+        return f"<LoanRepayment loan={self.loan_id} ₹{self.amount}>"
+
+
 
 # -----------------------------------------------------------------------------
 # Small helpers
@@ -2855,10 +2913,152 @@ def register_cli(app: Flask) -> None:
         print(f"Seeded bottle master. Created: {created}")
     
 
+    # ── Loans ──────────────────────────────────────────────────────────────────
+    @app.route("/loans", methods=["GET", "POST"])
+    def loans_list():
+        if request.method == "POST":
+            party    = (request.form.get("party_name") or "").strip()
+            ltype    = request.form.get("loan_type") or "given"
+            principal = _to_float(request.form.get("principal"), 0.0)
+            rate     = _to_float(request.form.get("interest_rate"), 0.0)
+            date_str = request.form.get("date_issued") or ""
+            due_str  = request.form.get("due_date") or ""
+            notes    = (request.form.get("notes") or "").strip()
+
+            if not party or principal <= 0:
+                flash("Party name and principal amount are required.", "warning")
+                return redirect(url_for("loans_list"))
+
+            try:
+                issued = _parse_date(date_str)
+            except Exception:
+                flash("Invalid issue date.", "danger")
+                return redirect(url_for("loans_list"))
+
+            due = None
+            if due_str:
+                try:
+                    due = _parse_date(due_str)
+                except Exception:
+                    pass
+
+            loan = Loan(
+                loan_type=ltype,
+                party_name=party,
+                principal=principal,
+                interest_rate=rate,
+                date_issued=issued,
+                due_date=due,
+                notes=notes or None,
+            )
+            db.session.add(loan)
+            commit_or_rollback()
+            flash(f"Loan added for {party}.", "success")
+            return redirect(url_for("loans_list"))
+
+        # GET: build summary and list
+        filter_type = request.args.get("type", "all")   # all / given / taken
+        filter_status = request.args.get("status", "active")  # active / closed / all
+
+        query = Loan.query
+        if filter_type in ("given", "taken"):
+            query = query.filter_by(loan_type=filter_type)
+
+        loans = query.order_by(Loan.date_issued.desc()).all()
+
+        if filter_status == "active":
+            loans = [l for l in loans if not l.is_closed]
+        elif filter_status == "closed":
+            loans = [l for l in loans if l.is_closed]
+
+        # Summary totals (all active loans)
+        all_active = Loan.query.filter_by(is_closed=False).all()
+        total_given_out = round(sum(l.outstanding() for l in all_active if l.loan_type == "given"), 2)
+        total_taken_out = round(sum(l.outstanding() for l in all_active if l.loan_type == "taken"), 2)
+
+        today = datetime.now().date().isoformat()
+        return render_template(
+            "loans.html",
+            loans=loans,
+            filter_type=filter_type,
+            filter_status=filter_status,
+            total_given_out=total_given_out,
+            total_taken_out=total_taken_out,
+            today=today,
+        )
+
+    @app.route("/loans/<int:loan_id>", methods=["GET"])
+    def loan_detail(loan_id):
+        loan = Loan.query.get_or_404(loan_id)
+        # Build running balance for repayment table
+        balance = loan.total_due()
+        timeline = []
+        for r in loan.repayments:
+            balance = round(balance - r.amount, 2)
+            timeline.append({"repayment": r, "balance": balance})
+        today = datetime.now().date().isoformat()
+        return render_template("loan_detail.html", loan=loan, timeline=timeline, today=today)
+
+    @app.route("/loans/<int:loan_id>/repay", methods=["POST"])
+    def loan_repay(loan_id):
+        loan = Loan.query.get_or_404(loan_id)
+        amount = _to_float(request.form.get("amount"), 0.0)
+        date_str = request.form.get("date") or ""
+        mode = (request.form.get("mode") or "").strip() or None
+        notes = (request.form.get("notes") or "").strip() or None
+
+        if amount <= 0:
+            flash("Repayment amount must be > 0.", "warning")
+            return redirect(url_for("loan_detail", loan_id=loan_id))
+        try:
+            rdate = _parse_date(date_str)
+        except Exception:
+            flash("Invalid date.", "danger")
+            return redirect(url_for("loan_detail", loan_id=loan_id))
+
+        rep = LoanRepayment(loan_id=loan_id, date=rdate, amount=amount, mode=mode, notes=notes)
+        db.session.add(rep)
+        # Auto-close if fully repaid
+        if loan.total_repaid() + amount >= loan.total_due():
+            loan.is_closed = True
+        commit_or_rollback()
+        flash(f"Repayment of ₹{amount:,.2f} recorded.", "success")
+        return redirect(url_for("loan_detail", loan_id=loan_id))
+
+    @app.route("/loans/<int:loan_id>/close", methods=["POST"])
+    def loan_close(loan_id):
+        loan = Loan.query.get_or_404(loan_id)
+        loan.is_closed = True
+        commit_or_rollback()
+        flash("Loan marked as closed.", "success")
+        return redirect(url_for("loan_detail", loan_id=loan_id))
+
+    @app.route("/loans/<int:loan_id>/delete", methods=["POST"])
+    def loan_delete(loan_id):
+        loan = Loan.query.get_or_404(loan_id)
+        db.session.delete(loan)
+        commit_or_rollback()
+        flash("Loan deleted.", "info")
+        return redirect(url_for("loans_list"))
+
+    @app.route("/loans/<int:loan_id>/repayments/<int:rep_id>/delete", methods=["POST"])
+    def loan_repayment_delete(loan_id, rep_id):
+        rep = LoanRepayment.query.get_or_404(rep_id)
+        db.session.delete(rep)
+        # Re-open if was auto-closed
+        loan = Loan.query.get_or_404(loan_id)
+        loan.is_closed = False
+        commit_or_rollback()
+        flash("Repayment deleted.", "info")
+        return redirect(url_for("loan_detail", loan_id=loan_id))
 
 
-
-
+# -----------------------------------------------------------------------------
+# Run (local dev)
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    app = create_app()
+    app.run(host="0.0.0.0", port=5002, debug=True)
 
 
 
