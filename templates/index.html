@@ -69,6 +69,43 @@
 
 </div>
 
+<!-- ===================== -->
+<!-- LOAN METRICS -->
+<!-- ===================== -->
+<div class="row g-3 mb-4">
+
+  <div class="col-md-4">
+    <a href="{{ url_for('loans_list') }}?type=given&status=active" class="text-decoration-none">
+      <div class="card p-3 shadow-sm border-0" style="background:#161c24; border-left:3px solid #4ade80 !important;">
+        <h6 class="text-muted small mb-1"><i class="bi bi-cash-coin me-1 text-success"></i> Loans Given (Outstanding)</h6>
+        <h4 class="text-success mb-0">₹ {{ loan_given_out }}</h4>
+        <small class="text-muted">Money to be recovered</small>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-md-4">
+    <a href="{{ url_for('loans_list') }}?type=taken&status=active" class="text-decoration-none">
+      <div class="card p-3 shadow-sm border-0" style="background:#161c24; border-left:3px solid #f87171 !important;">
+        <h6 class="text-muted small mb-1"><i class="bi bi-cash-coin me-1 text-danger"></i> Loans Taken (Outstanding)</h6>
+        <h4 class="text-danger mb-0">₹ {{ loan_taken_out }}</h4>
+        <small class="text-muted">Money to be repaid</small>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-md-4">
+    <a href="{{ url_for('loans_list') }}?status=active" class="text-decoration-none">
+      <div class="card p-3 shadow-sm border-0" style="background:#161c24; border-left:3px solid #60a5fa !important;">
+        <h6 class="text-muted small mb-1"><i class="bi bi-list-check me-1 text-info"></i> Active Loans</h6>
+        <h4 class="text-info mb-0">{{ loan_active_count }}</h4>
+        <small class="text-muted">Open loan accounts</small>
+      </div>
+    </a>
+  </div>
+
+</div>
+
 
 <!-- ===================== -->
 <!-- CURRENT MONTH -->

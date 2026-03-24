@@ -802,6 +802,14 @@ def register_routes(app: Flask) -> None:
         )
 
         # --------------------------------------------------
+        # LOAN METRICS
+        # --------------------------------------------------
+        active_loans = Loan.query.filter_by(is_closed=False).all()
+        loan_given_out  = round(sum(l.outstanding() for l in active_loans if l.loan_type == "given"), 2)
+        loan_taken_out  = round(sum(l.outstanding() for l in active_loans if l.loan_type == "taken"), 2)
+        loan_active_count = len(active_loans)
+
+        # --------------------------------------------------
         # RENDER
         # --------------------------------------------------
         return render_template(
@@ -820,7 +828,11 @@ def register_routes(app: Flask) -> None:
             total_purchase_pending=total_purchase_pending,
             total_expense=round(total_expense, 2),
             chart_labels=json.dumps(chart_labels),
-            chart_values=json.dumps(chart_values)
+            chart_values=json.dumps(chart_values),
+
+            loan_given_out=loan_given_out,
+            loan_taken_out=loan_taken_out,
+            loan_active_count=loan_active_count,
         )
 
     # Clients
