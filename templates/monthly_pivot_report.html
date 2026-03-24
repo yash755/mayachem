@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Monthly Bifurcation{% endblock %}
+
+{% block content %}
+<style>
+  .report-header { margin-bottom: 1.5rem; }
+  .month-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .month-bar select { font-size: 0.9rem; min-width: 180px; }
+
+  /* Summary chips */
+  .summary-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .chip {
+    background: #161c24; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 8px 16px; font-size: 0.82rem; line-height: 1.4;
+  }
+  .chip .chip-label { color: #8899aa; display: block; }
+  .chip .chip-value { font-weight: 700; font-size: 1rem; color: #e6e6e6; }
+
+  /* Wrapper: scroll both axes, max height */
+  .pivot-wrap {
+    overflow: auto;
+    max-height: 72vh;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 2px 12px rgba(0,0,0,.5);
+  }
+  .pivot-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 100%;
+    font-size: 0.84rem;
+    color: #e6e6e6;
+  }
+
+  /* Sticky client column (body + footer) */
+  .pivot-table th.col-client,
+  .pivot-table td.col-client {
+    position: sticky; left: 0; z-index: 2;
+    background: #141a22;
+    min-width: 180px; max-width: 240px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-right: 1px solid rgba(255,255,255,0.12) !important;
+  }
+
+  /* Frozen header */
+  .pivot-table thead th {
+    position: sticky; top: 0; z-index: 3;
+    background: #1c2535; color: #c9d8f0;
+    font-weight: 600; white-space: nowrap;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    text-align: right;
+  }
+  .pivot-table thead th.col-client { text-align: left; z-index: 4; }
+
+  /* Body cells */
+  .pivot-table tbody td {
+    padding: 8px 14px; text-align: right;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    white-space: nowrap; background: #0f151d;
+  }
+  .pivot-table tbody td.col-client { text-align: left; font-weight: 500; color: #c9d8f0; }
+  .pivot-table tbody tr:hover td { background: #1a2540 !important; }
+
+  /* Row total column */
+  .pivot-table td.col-total,
+  .pivot-table th.col-total {
+    border-left: 1px solid rgba(255,255,255,0.12) !important;
+    font-weight: 700; color: #7dd3fc; background: #141c2a !important;
+  }
+  .pivot-table thead th.col-total { background: #1c2535 !important; color: #7dd3fc; }
+
+  /* Sticky footer */
+  .pivot-table tfoot td {
+    padding: 10px 14px; font-weight: 700;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    background: #1c2535; color: #e6e6e6;
+    text-align: right; white-space: nowrap;
+    position: sticky; bottom: 0; z-index: 2;
+  }
+  .pivot-table tfoot td.col-client {
+    text-align: left; position: sticky; left: 0; z-index: 3; background: #1c2535;
+  }
+  .pivot-table tfoot td.col-total { color: #7dd3fc; background: #1a2a3a !important; }
+
+  /* Dash for empty cells */
+  .cell-dash { color: #2e3d4f; }
+
+  /* Empty state */
+  .empty-pivot { text-align: center; padding: 60px 20px; color: #6c7d8e; }
+  .empty-pivot i { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+</style>
+
+
+<!-- Header -->
+<div class="report-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-table me-2 text-warning"></i>Monthly Bifurcation</h4>
+    <small class="text-muted">Chemical-wise sales by party for <strong>{{ sel_label }}</strong></small>
+  </div>
+</div>
+
+<!-- Month selector -->
+<div class="month-bar">
+  <label class="fw-semibold text-muted small mb-0">Select Month:</label>
+  <form method="get" class="d-flex align-items-center gap-2">
+    <select name="ym" class="form-select form-select-sm" onchange="this.form.submit()" id="ym-select">
+      {% for m in available_months %}
+        <option value="{{ m }}" {% if m == ym %}selected{% endif %}>
+          {{ m }}
+        </option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- Summary chips -->
+{% if clients %}
+<div class="summary-bar">
+  <div class="chip">
+    <span class="chip-label">Parties</span>
+    <span class="chip-value">{{ clients | length }}</span>
+  </div>
+  <div class="chip">
+    <span class="chip-label">Chemicals</span>
+    <span class="chip-value">{{ products_list | length }}</span>
+  </div>
+  <div class="chip">
+    <span class="chip-label">Total Qty (kg)</span>
+    <span class="chip-value">{{ "%.2f"|format(grand_total) }}</span>
+  </div>
+</div>
+{% endif %}
+
+<!-- Pivot table -->
+{% if clients and products_list %}
+<div class="pivot-wrap">
+  <table class="pivot-table" id="pivot-table">
+    <thead>
+      <tr>
+        <th class="col-client">Party / Client</th>
+        {% for prod in products_list %}
+          <th title="{{ prod }}">{{ prod }}</th>
+        {% endfor %}
+        <th class="col-total">Total (kg)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for client in clients %}
+      <tr>
+        <td class="col-client" title="{{ client }}">{{ client }}</td>
+        {% for prod in products_list %}
+          {% set qty = pivot.get(client, {}).get(prod, 0) %}
+          {% if qty %}
+            <td>{{ "%.2f"|format(qty) }}</td>
+          {% else %}
+            <td class="cell-dash">—</td>
+          {% endif %}
+        {% endfor %}
+        <td class="col-total">{{ "%.2f"|format(row_totals.get(client, 0)) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td class="col-client">Total</td>
+        {% for prod in products_list %}
+          <td>{{ "%.2f"|format(col_totals.get(prod, 0)) }}</td>
+        {% endfor %}
+        <td class="col-total">{{ "%.2f"|format(grand_total) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{% else %}
+<div class="empty-pivot">
+  <i class="bi bi-inbox"></i>
+  No sales data found for <strong>{{ sel_label }}</strong>.<br>
+  <small>Try selecting a different month.</small>
+</div>
+{% endif %}
+
+{% endblock %}

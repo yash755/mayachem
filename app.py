@@ -2332,6 +2332,84 @@ def register_routes(app: Flask) -> None:
         products = Product.query.all()
         return render_template("stock_report.html", products=products)
 
+    @app.route("/reports/monthly-pivot")
+    def monthly_pivot_report():
+        from collections import defaultdict
+
+        # --- Determine selected month ---
+        now = datetime.now()
+        default_ym = now.strftime("%Y-%m")
+        ym = (request.args.get("ym") or default_ym).strip()
+        try:
+            sel_year, sel_month = int(ym[:4]), int(ym[5:7])
+        except (ValueError, IndexError):
+            ym = default_ym
+            sel_year, sel_month = now.year, now.month
+
+        # --- All available months (for dropdown) ---
+        months_raw = db.session.execute(
+            text("SELECT DISTINCT strftime('%Y-%m', date) AS ym FROM sale ORDER BY ym DESC")
+        ).mappings().all()
+        available_months = [r["ym"] for r in months_raw]
+        if ym not in available_months:
+            available_months.insert(0, ym)
+
+        # --- Fetch sale items for the selected month ---
+        rows = db.session.execute(
+            text("""
+                SELECT
+                    s.client_name,
+                    COALESCE(p.name, 'Unknown') AS product_name,
+                    ROUND(SUM(si.quantity_kg), 2) AS qty_kg
+                FROM sale_item si
+                JOIN sale s ON si.sale_id = s.id
+                LEFT JOIN product p ON si.product_id = p.id
+                WHERE strftime('%Y-%m', s.date) = :ym
+                GROUP BY s.client_name, p.name
+                ORDER BY s.client_name, p.name
+            """),
+            {"ym": ym}
+        ).mappings().all()
+
+        # --- Build pivot: {client: {product: qty_kg}} ---
+        pivot = defaultdict(lambda: defaultdict(float))
+        products_set = set()
+        for r in rows:
+            pivot[r["client_name"]][r["product_name"]] += float(r["qty_kg"] or 0)
+            products_set.add(r["product_name"])
+
+        clients = sorted(pivot.keys())
+        products_list = sorted(products_set)
+
+        # Row totals
+        row_totals = {c: round(sum(pivot[c].values()), 2) for c in clients}
+        # Column totals
+        col_totals = {p: round(sum(pivot[c].get(p, 0) for c in clients), 2) for p in products_list}
+        grand_total = round(sum(row_totals.values()), 2)
+
+        # Convert defaultdict to plain dict for template
+        pivot_plain = {c: dict(pivot[c]) for c in clients}
+
+        # Pretty label for selected month
+        try:
+            sel_label = datetime(sel_year, sel_month, 1).strftime("%B %Y")
+        except Exception:
+            sel_label = ym
+
+        return render_template(
+            "monthly_pivot_report.html",
+            ym=ym,
+            sel_label=sel_label,
+            available_months=available_months,
+            clients=clients,
+            products_list=products_list,
+            pivot=pivot_plain,
+            row_totals=row_totals,
+            col_totals=col_totals,
+            grand_total=grand_total,
+        )
+
+
     # Reports & Export
     @app.route("/reports")
     def reports():
