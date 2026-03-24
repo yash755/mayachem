@@ -2977,6 +2977,7 @@ def register_cli(app: Flask) -> None:
         total_taken_out = round(sum(l.outstanding() for l in all_active if l.loan_type == "taken"), 2)
 
         today = datetime.now().date().isoformat()
+        clients = Client.query.order_by(Client.name).all()
         return render_template(
             "loans.html",
             loans=loans,
@@ -2985,6 +2986,7 @@ def register_cli(app: Flask) -> None:
             total_given_out=total_given_out,
             total_taken_out=total_taken_out,
             today=today,
+            clients=clients,
         )
 
     @app.route("/loans/<int:loan_id>", methods=["GET"])

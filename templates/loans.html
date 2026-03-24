@@ -53,7 +53,12 @@
       </div>
       <div class="col-12 col-sm-6 col-md-3">
         <label class="form-label-sm">Party Name *</label>
-        <input name="party_name" type="text" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Borrower / Lender name" required>
+        <select name="party_name" class="form-select form-select-sm bg-dark text-light border-secondary" required>
+          <option value="">— Select Client —</option>
+          {% for c in clients %}
+            <option value="{{ c.name }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-12 col-sm-6 col-md-2">
         <label class="form-label-sm">Principal (₹) *</label>
