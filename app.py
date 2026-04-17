@@ -826,6 +826,21 @@ def register_routes(app: Flask) -> None:
         loan_active_count = len(active_loans)
 
         # --------------------------------------------------
+        # SALARY METRICS
+        # --------------------------------------------------
+        employees = Employee.query.all()
+        salary_paid_raw = db.session.query(
+            Expense.employee_id,
+            func.sum(Expense.amount)
+        ).filter(
+            Expense.employee_id.isnot(None),
+            db.func.strftime('%Y-%m', Expense.date) == current_ym
+        ).group_by(Expense.employee_id).all()
+        
+        salary_paid_map = {row[0]: row[1] for row in salary_paid_raw}
+        total_salary_left = sum(max(0, emp.monthly_salary - salary_paid_map.get(emp.id, 0)) for emp in employees)
+
+        # --------------------------------------------------
         # RENDER
         # --------------------------------------------------
         return render_template(
@@ -843,6 +858,7 @@ def register_routes(app: Flask) -> None:
             total_sale_pending=total_sale_pending,
             total_purchase_pending=total_purchase_pending,
             total_expense=round(total_expense, 2),
+            total_salary_left=round(total_salary_left, 2),
             chart_labels=json.dumps(chart_labels),
             chart_values=json.dumps(chart_values),
 
@@ -3160,6 +3176,29 @@ def register_cli(app: Flask) -> None:
         commit_or_rollback()
         flash(f"Repayment of ₹{amount:,.2f} recorded.", "success")
         return redirect(url_for("loan_detail", loan_id=loan_id))
+
+    @app.route("/loans/edit/<int:loan_id>", methods=["POST"])
+    def loan_edit(loan_id):
+        loan = Loan.query.get_or_404(loan_id)
+        loan.loan_type = request.form.get("loan_type")
+        loan.party_name = request.form.get("party_name")
+        loan.principal = float(request.form.get("principal") or 0)
+        loan.interest_rate = float(request.form.get("interest_rate") or 0)
+        
+        date_issued_str = request.form.get("date_issued")
+        if date_issued_str:
+            loan.date_issued = datetime.strptime(date_issued_str, '%Y-%m-%d')
+            
+        due_date_str = request.form.get("due_date")
+        if due_date_str:
+            loan.due_date = datetime.strptime(due_date_str, '%Y-%m-%d')
+        else:
+            loan.due_date = None
+            
+        loan.notes = request.form.get("notes")
+        db.session.commit()
+        flash("Loan updated successfully", "success")
+        return redirect(url_for('loans_list'))
 
     @app.route("/loans/<int:loan_id>/close", methods=["POST"])
     def loan_close(loan_id):
