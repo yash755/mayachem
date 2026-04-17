@@ -840,6 +840,8 @@ def register_routes(app: Flask) -> None:
         salary_paid_map = {row[0]: row[1] for row in salary_paid_raw}
         total_salary_left = sum(max(0, emp.monthly_salary - salary_paid_map.get(emp.id, 0)) for emp in employees)
 
+        products = Product.query.order_by(Product.current_stock_kg.desc()).limit(3).all()
+
         # --------------------------------------------------
         # RENDER
         # --------------------------------------------------
@@ -854,6 +856,7 @@ def register_routes(app: Flask) -> None:
             latest=latest,
             monthly=monthly,
             current_data=current_data,
+            products=products,
 
             total_sale_pending=total_sale_pending,
             total_purchase_pending=total_purchase_pending,

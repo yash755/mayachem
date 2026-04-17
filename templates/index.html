@@ -108,6 +108,53 @@
 
 
 <!-- ===================== -->
+<!-- PRODUCT STOCK LEVELS -->
+<!-- ===================== -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+    <span>📦 Top 3 Products by Stock</span>
+    <a href="{{ url_for('stock_report') }}" class="btn btn-sm btn-outline-primary">View Full Report</a>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-3">Product</th>
+            <th class="text-end">Current Stock</th>
+            <th class="text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in products %}
+          <tr>
+            <td class="ps-3">{{ p.name }}</td>
+            <td class="text-end fw-bold">{{ "%.1f"|format(p.current_stock_kg) }} kg</td>
+            <td class="text-center">
+              {% if p.current_stock_kg <= p.min_stock_kg %}
+                <span class="badge bg-danger rounded-pill">
+                  <i class="bi bi-exclamation-triangle-fill"></i> Low Stock
+                </span>
+              {% else %}
+                <span class="badge bg-success rounded-pill">
+                  <i class="bi bi-check-circle-fill"></i> Sufficient
+                </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="3" class="text-center py-3 text-muted">No products defined.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===================== -->
 <!-- CURRENT MONTH -->
 <!-- ===================== -->
 <div class="card shadow-sm mb-4">
