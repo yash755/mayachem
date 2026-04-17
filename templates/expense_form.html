@@ -32,6 +32,22 @@ selected
 </select>
 </div>
 
+<div class="mb-3" id="employee-group" style="display: none;">
+<label>Employee (Optional, for Labour)</label>
+<select name="employee_id" class="form-select">
+<option value="">Select Employee</option>
+{% for emp in employees %}
+<option value="{{ emp.id }}"
+{% if expense and expense.employee_id == emp.id %}
+selected
+{% endif %}
+>
+{{ emp.name }}
+</option>
+{% endfor %}
+</select>
+</div>
+
 <div class="mb-3">
 <label>Description</label>
 <input name="description" class="form-control"
@@ -59,5 +75,23 @@ value="{{ expense.amount if expense else '' }}">
 <button class="btn btn-primary">Save</button>
 
 </form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var categorySelect = document.querySelector('select[name="category"]');
+    var employeeGroup = document.getElementById('employee-group');
+    
+    function toggleEmployee() {
+        if (categorySelect.value === 'Labour') {
+            employeeGroup.style.display = 'block';
+        } else {
+            employeeGroup.style.display = 'none';
+        }
+    }
+    
+    categorySelect.addEventListener('change', toggleEmployee);
+    toggleEmployee(); // Initial state
+});
+</script>
 
 {% endblock %}

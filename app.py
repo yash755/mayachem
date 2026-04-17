@@ -69,6 +69,12 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
     # create tables automatically for local dev
     with app.app_context():
         db.create_all()
+        
+        # Seed ExpenseCategory if empty
+        if ExpenseCategory.query.count() == 0:
+            for cat_name in EXPENSE_CATEGORIES:
+                db.session.add(ExpenseCategory(name=cat_name))
+            db.session.commit()
 
     register_routes(app)
     register_cli(app)
@@ -79,6 +85,10 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
 # -----------------------------------------------------------------------------
 # Models
 # -----------------------------------------------------------------------------
+class ExpenseCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+
 class Client(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(160), nullable=False, unique=True)
@@ -156,8 +166,14 @@ class Sale(db.Model):
         else:
             return "Paid"
 
+class Employee(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    monthly_salary = db.Column(db.Float, nullable=False, default=0.0)
+
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=True)
 
     date = db.Column(db.Date, nullable=False)
 
@@ -2344,7 +2360,16 @@ def register_routes(app: Flask) -> None:
 
     @app.route("/reports/expense-analysis")
     def expense_analysis():
-        expenses = Expense.query.all()
+        month_filter = request.args.get("month")
+        if not month_filter:
+            month_filter = datetime.now().strftime("%Y-%m")
+
+        all_expenses = Expense.query.all()
+        months = sorted(list(set(e.date.strftime("%Y-%m") for e in all_expenses)), reverse=True)
+        if month_filter not in months and month_filter != datetime.now().strftime("%Y-%m"):
+            months.insert(0, month_filter)
+
+        expenses = [e for e in all_expenses if e.date.strftime("%Y-%m") == month_filter]
         
         report = {}
         total_amount = 0
@@ -2371,7 +2396,67 @@ def register_routes(app: Flask) -> None:
 
         return render_template("expense_analysis_report.html", 
                                report=sorted_report, 
-                               total_amount=total_amount)
+                               total_amount=total_amount,
+                               months=months,
+                               selected_month=month_filter)
+
+    @app.route("/employees", methods=["GET"])
+    def employees_list():
+        employees = Employee.query.order_by(Employee.name).all()
+        current_ym = datetime.now().strftime("%Y-%m")
+        
+        # Calculate paid this month
+        for emp in employees:
+            paid = sum(e.amount for e in Expense.query.filter_by(employee_id=emp.id).all() if e.date.strftime("%Y-%m") == current_ym)
+            emp.paid_this_month = paid
+            emp.left_this_month = emp.monthly_salary - paid
+            
+        return render_template("employees.html", employees=employees, current_ym=current_ym)
+
+    @app.route("/employees/add", methods=["POST"])
+    def employees_add():
+        name = request.form.get("name")
+        salary = float(request.form.get("monthly_salary") or 0)
+        if name:
+            emp = Employee(name=name, monthly_salary=salary)
+            db.session.add(emp)
+            db.session.commit()
+            flash(f"Employee {name} added", "success")
+        return redirect(url_for("employees_list"))
+
+    @app.route("/employees/<int:id>/edit", methods=["POST"])
+    def employees_edit(id):
+        emp = Employee.query.get_or_404(id)
+        name = request.form.get("name")
+        salary = float(request.form.get("monthly_salary") or 0)
+        if name:
+            emp.name = name
+            emp.monthly_salary = salary
+            db.session.commit()
+            flash("Employee updated", "success")
+        return redirect(url_for("employees_list"))
+
+    @app.route("/expense-categories", methods=["GET", "POST"])
+    def expense_categories():
+        if request.method == "POST":
+            name = request.form.get("name")
+            if name:
+                cat = ExpenseCategory(name=name)
+                db.session.add(cat)
+                db.session.commit()
+                flash("Category added", "success")
+            return redirect(url_for("expense_categories"))
+        
+        categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
+        return render_template("expense_categories.html", categories=categories)
+
+    @app.route("/expense-categories/<int:id>/delete", methods=["POST"])
+    def expense_categories_delete(id):
+        cat = ExpenseCategory.query.get_or_404(id)
+        db.session.delete(cat)
+        db.session.commit()
+        flash("Category deleted", "info")
+        return redirect(url_for("expense_categories"))
 
     # Products & Stock
     @app.route("/products", methods=["GET", "POST"])
@@ -2837,6 +2922,8 @@ def register_routes(app: Flask) -> None:
     def expenses_form(expense_id=None):
 
         expense = Expense.query.get(expense_id) if expense_id else None
+        employees = Employee.query.order_by(Employee.name).all()
+        categories = [c.name for c in ExpenseCategory.query.order_by(ExpenseCategory.name).all()]
 
         if request.method == "POST":
             try:
@@ -2845,6 +2932,8 @@ def register_routes(app: Flask) -> None:
                 description = request.form.get("description")
                 amount = float(request.form.get("amount"))
                 mode = request.form.get("mode")
+                employee_id_raw = request.form.get("employee_id")
+                employee_id = int(employee_id_raw) if employee_id_raw else None
 
                 if not expense:
                     expense = Expense(
@@ -2852,7 +2941,8 @@ def register_routes(app: Flask) -> None:
                         category=category,
                         description=description,
                         amount=amount,
-                        mode=mode
+                        mode=mode,
+                        employee_id=employee_id
                     )
                     db.session.add(expense)
                 else:
@@ -2861,6 +2951,7 @@ def register_routes(app: Flask) -> None:
                     expense.description = description
                     expense.amount = amount
                     expense.mode = mode
+                    expense.employee_id = employee_id
 
                 commit_or_rollback()
 
@@ -2873,7 +2964,8 @@ def register_routes(app: Flask) -> None:
         return render_template(
             "expense_form.html",
             expense=expense,
-            categories=EXPENSE_CATEGORIES
+            categories=categories,
+            employees=employees
         )
 
 
