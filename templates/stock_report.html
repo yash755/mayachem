@@ -10,9 +10,9 @@
         </a>
     </div>
 
-    <div class="card shadow-sm border-0 rounded-4">
+    <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive d-none d-md-block">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="bg-light">
                         <tr>
@@ -52,6 +52,36 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+
+            <!-- MOBILE VIEW CARDS -->
+            <div class="d-block d-md-none p-3">
+                {% for p in products %}
+                <div class="card border shadow-sm mb-3 rounded-3">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0 fw-bold">{{ p.name }}</h5>
+                            {% if p.current_stock_kg <= p.min_stock_kg %}
+                            <span class="badge bg-danger rounded-pill px-3">Low Stock</span>
+                            {% else %}
+                            <span class="badge bg-success rounded-pill px-3">Sufficient</span>
+                            {% endif %}
+                        </div>
+                        <div class="row text-center bg-light rounded-3 py-2 g-0">
+                            <div class="col-6 border-end">
+                                <small class="text-muted d-block">Current</small>
+                                <div class="fw-bold fs-5">{{ "%.1f"|format(p.current_stock_kg) }} kg</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Min Alert</small>
+                                <div class="fw-bold fs-5">{{ "%.1f"|format(p.min_stock_kg) }} kg</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">No products found.</div>
+                {% endfor %}
             </div>
         </div>
     </div>
