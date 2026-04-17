@@ -3,44 +3,44 @@
 
 {% block content %}
 <style>
-  .detail-card { background:#141a22; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:1.2rem; margin-bottom:1.25rem; }
-  .stat-box { background:#0f151d; border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:.8rem 1rem; }
-  .stat-box .sl { font-size:.75rem; color:#8899aa; }
-  .stat-box .sv { font-size:1.1rem; font-weight:700; color:#e6e6e6; margin-top:2px; }
-  .badge-given  { background:rgba(34,197,94,.15); color:#4ade80; border-radius:6px; padding:3px 10px; font-size:.78rem; font-weight:600; }
-  .badge-taken  { background:rgba(239,68,68,.15);  color:#f87171; border-radius:6px; padding:3px 10px; font-size:.78rem; font-weight:600; }
-  .badge-active  { background:rgba(59,130,246,.15); color:#60a5fa; border-radius:6px; padding:3px 10px; font-size:.78rem; }
-  .badge-overdue { background:rgba(239,68,68,.2);  color:#f87171; border-radius:6px; padding:3px 10px; font-size:.78rem; }
-  .badge-closed  { background:rgba(107,114,128,.15);color:#9ca3af; border-radius:6px; padding:3px 10px; font-size:.78rem; }
-  .timeline-table thead th { background:#1c2535; color:#c9d8f0; font-size:.8rem; white-space:nowrap; padding:8px 12px; position:sticky; top:0; z-index:1; }
-  .timeline-table tbody td { padding:7px 12px; font-size:.84rem; border-top:1px solid rgba(255,255,255,.05); vertical-align:middle; }
-  .balance-col { color:#7dd3fc; font-weight:600; }
-  .form-label-sm { font-size:.78rem; color:#8899aa; margin-bottom:2px; }
-  .outstanding-big { font-size:1.8rem; font-weight:800; color:#7dd3fc; }
+  .detail-card { background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; margin-bottom:1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .stat-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:.8rem 1rem; }
+  .stat-box .sl { font-size:.75rem; color:#64748b; }
+  .stat-box .sv { font-size:1.1rem; font-weight:700; color:#1e293b; margin-top:2px; }
+  .badge-given  { background: #dcfce7;  color: #15803d; border-radius: 6px; padding: 3px 10px; font-size:.78rem; font-weight:600; }
+  .badge-taken  { background: #fee2e2;  color: #b91c1c; border-radius: 6px; padding: 3px 10px; font-size:.78rem; font-weight:600; }
+  .badge-active  { background: #e0f2fe; color: #0369a1; border-radius: 6px; padding: 3px 10px; font-size:.78rem; }
+  .badge-overdue { background: #fef2f2;  color: #dc2626; border-radius: 6px; padding: 3px 10px; font-size:.78rem; font-weight:600; }
+  .badge-closed  { background: #f1f5f9;color: #475569; border-radius: 6px; padding: 3px 10px; font-size:.78rem; }
+  .timeline-table thead th { background:#f8fafc; color:#475569; font-size:.8rem; white-space:nowrap; padding:12px; position:sticky; top:0; z-index:1; border-bottom: 2px solid #e2e8f0; }
+  .timeline-table tbody td { padding:12px; font-size:.84rem; border-top:1px solid #f1f5f9; vertical-align:middle; color:#1e293b; }
+  .balance-col { color:#0284c7; font-weight:600; }
+  .form-label-sm { font-size:.78rem; color:#64748b; margin-bottom:2px; }
+  .outstanding-big { font-size:1.8rem; font-weight:800; color:#0284c7; }
 </style>
 
 <!-- Back link -->
 <div class="mb-3">
-  <a href="{{ url_for('loans_list') }}" class="text-muted small"><i class="bi bi-arrow-left me-1"></i>Back to Loans</a>
+  <a href="{{ url_for('loans_list') }}" class="text-muted small text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Back to Loans</a>
 </div>
 
 <!-- Loan header -->
 <div class="detail-card">
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
     <div>
-      <h4 class="mb-1 fw-bold text-light">{{ loan.party_name }}</h4>
+      <h4 class="mb-1 fw-bold text-dark">{{ loan.party_name }}</h4>
       <span class="badge-{{ loan.loan_type }}">{{ loan.loan_type|upper }}</span>
       <span class="ms-2
         {% if loan.status() == 'Overdue' %}badge-overdue
         {% elif loan.status() == 'Closed' %}badge-closed
         {% else %}badge-active{% endif %}">{{ loan.status() }}</span>
       <div class="mt-2 text-muted small">
-        Issued: <strong class="text-light">{{ loan.date_issued.strftime('%d %b %Y') }}</strong>
+        Issued: <strong class="text-dark">{{ loan.date_issued.strftime('%d %b %Y') }}</strong>
         {% if loan.due_date %}
-        · Due: <strong class="text-light">{{ loan.due_date.strftime('%d %b %Y') }}</strong>
+        · Due: <strong class="text-dark">{{ loan.due_date.strftime('%d %b %Y') }}</strong>
         {% endif %}
         {% if loan.interest_rate %}
-        · Interest: <strong class="text-light">{{ loan.interest_rate }}% p.a.</strong>
+        · Interest: <strong class="text-dark">{{ loan.interest_rate }}% p.a.</strong>
         {% endif %}
       </div>
       {% if loan.notes %}<div class="text-muted small mt-1">{{ loan.notes }}</div>{% endif %}
@@ -97,19 +97,19 @@
 <!-- Add repayment form -->
 {% if not loan.is_closed %}
 <div class="detail-card">
-  <h6 class="fw-semibold text-light mb-3"><i class="bi bi-plus-circle me-1 text-success"></i>Record Repayment</h6>
+  <h6 class="fw-semibold text-dark mb-3"><i class="bi bi-plus-circle me-1 text-success"></i>Record Repayment</h6>
   <form method="post" action="{{ url_for('loan_repay', loan_id=loan.id) }}" class="row g-2">
     <div class="col-12 col-sm-6 col-md-3">
       <label class="form-label-sm">Amount (₹) *</label>
-      <input name="amount" type="number" step="0.01" min="0.01" class="form-control form-control-sm bg-dark text-light border-secondary" required>
+      <input name="amount" type="number" step="0.01" min="0.01" class="form-control form-control-sm" required>
     </div>
     <div class="col-12 col-sm-6 col-md-2">
       <label class="form-label-sm">Date *</label>
-      <input name="date" type="date" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ today }}" required>
+      <input name="date" type="date" class="form-control form-control-sm" value="{{ today }}" required>
     </div>
     <div class="col-12 col-sm-6 col-md-2">
       <label class="form-label-sm">Mode</label>
-      <select name="mode" class="form-select form-select-sm bg-dark text-light border-secondary">
+      <select name="mode" class="form-select form-select-sm">
         <option value="">—</option>
         <option>Cash</option>
         <option>Bank Transfer</option>
@@ -119,7 +119,7 @@
     </div>
     <div class="col-12 col-sm-6 col-md-3">
       <label class="form-label-sm">Notes</label>
-      <input name="notes" type="text" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Optional">
+      <input name="notes" type="text" class="form-control form-control-sm" placeholder="Optional">
     </div>
     <div class="col-12 col-md-2 d-flex align-items-end">
       <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-check me-1"></i>Save</button>
@@ -130,13 +130,13 @@
 
 <!-- Repayment timeline -->
 <div class="detail-card p-0" style="overflow:hidden;">
-  <div style="padding:.9rem 1.2rem; border-bottom:1px solid rgba(255,255,255,.08);">
-    <span class="fw-semibold text-light"><i class="bi bi-clock-history me-1"></i>Repayment History</span>
+  <div style="padding:.9rem 1.2rem; border-bottom:1px solid #e2e8f0;">
+    <span class="fw-semibold text-dark"><i class="bi bi-clock-history me-1"></i>Repayment History</span>
     <span class="text-muted small ms-2">({{ loan.repayments|length }} entries)</span>
   </div>
   {% if timeline %}
   <div style="overflow-x:auto;">
-    <table class="table mb-0 timeline-table" style="color:#e6e6e6;">
+    <table class="table mb-0 timeline-table">
       <thead>
         <tr>
           <th>#</th>

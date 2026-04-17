@@ -4,37 +4,38 @@
 {% block content %}
 <style>
   .loan-card {
-    background: #141a22; border: 1px solid rgba(255,255,255,0.08);
+    background: #ffffff; border: 1px solid #e2e8f0;
     border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: .75rem;
-    transition: border-color .2s;
+    transition: all .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   }
-  .loan-card:hover { border-color: rgba(255,255,255,0.2); }
-  .loan-card .party { font-weight: 600; font-size: 1rem; color: #c9d8f0; }
-  .loan-card .meta  { font-size: 0.78rem; color: #8899aa; margin-top: 2px; }
-  .badge-given  { background: rgba(34,197,94,.15);  color: #4ade80; border-radius: 6px; padding: 2px 8px; font-size:.72rem; font-weight:600; }
-  .badge-taken  { background: rgba(239,68,68,.15);  color: #f87171; border-radius: 6px; padding: 2px 8px; font-size:.72rem; font-weight:600; }
-  .badge-active  { background: rgba(59,130,246,.15); color: #60a5fa; border-radius: 6px; padding: 2px 8px; font-size:.72rem; }
-  .badge-overdue { background: rgba(239,68,68,.2);  color: #f87171; border-radius: 6px; padding: 2px 8px; font-size:.72rem; }
-  .badge-closed  { background: rgba(107,114,128,.15);color: #9ca3af; border-radius: 6px; padding: 2px 8px; font-size:.72rem; }
-  .outstanding { font-size: 1.1rem; font-weight: 700; color: #7dd3fc; }
+  .loan-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+  .loan-card .party { font-weight: 600; font-size: 1rem; color: #1e293b; }
+  .loan-card .meta  { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
+  .badge-given  { background: #dcfce7;  color: #15803d; border-radius: 6px; padding: 2px 8px; font-size:.72rem; font-weight:600; }
+  .badge-taken  { background: #fee2e2;  color: #b91c1c; border-radius: 6px; padding: 2px 8px; font-size:.72rem; font-weight:600; }
+  .badge-active  { background: #e0f2fe; color: #0369a1; border-radius: 6px; padding: 2px 8px; font-size:.72rem; }
+  .badge-overdue { background: #fef2f2;  color: #dc2626; border-radius: 6px; padding: 2px 8px; font-size:.72rem; font-weight:600; }
+  .badge-closed  { background: #f1f5f9;color: #475569; border-radius: 6px; padding: 2px 8px; font-size:.72rem; }
+  .outstanding { font-size: 1.1rem; font-weight: 700; color: #0284c7; }
   .chip-bar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1.25rem; }
-  .chip { background:#161c24; border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:8px 16px; font-size:.82rem; }
-  .chip .cl { color:#8899aa; display:block; font-size:.74rem; }
-  .chip .cv { font-weight:700; font-size:1rem; color:#e6e6e6; }
+  .chip { background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 16px; font-size:.82rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .chip .cl { color:#64748b; display:block; font-size:.74rem; }
+  .chip .cv { font-weight:700; font-size:1rem; color:#1e293b; }
   .filter-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1rem; }
   .filter-bar .btn { font-size:.8rem; border-radius:8px; }
-  .add-panel { background:#141a22; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:1.2rem; margin-bottom:1.5rem; }
-  .add-panel h6 { color:#c9d8f0; font-weight:600; margin-bottom:.9rem; }
-  .form-label-sm { font-size:.78rem; color:#8899aa; margin-bottom:2px; }
+  .add-panel { background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; margin-bottom:1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+  .add-panel h6 { color:#1e293b; font-weight:600; margin-bottom:.9rem; }
+  .form-label-sm { font-size:.78rem; color:#64748b; margin-bottom:2px; }
 </style>
 
 <!-- Header -->
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-cash-coin me-2 text-info"></i>Loans</h4>
+    <h4 class="mb-0 fw-bold text-dark"><i class="bi bi-cash-coin me-2 text-primary"></i>Loans</h4>
     <small class="text-muted">Track loans given and taken</small>
   </div>
-  <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#addPanel">
+  <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addPanel">
     <i class="bi bi-plus-lg me-1"></i> Add Loan
   </button>
 </div>
@@ -42,18 +43,18 @@
 <!-- Add loan collapsible form -->
 <div class="collapse" id="addPanel">
   <div class="add-panel">
-    <h6><i class="bi bi-plus-circle me-1"></i>New Loan</h6>
+    <h6><i class="bi bi-plus-circle me-1 text-primary"></i>New Loan</h6>
     <form method="post" class="row g-2">
       <div class="col-12 col-sm-6 col-md-3">
         <label class="form-label-sm">Type *</label>
-        <select name="loan_type" class="form-select form-select-sm bg-dark text-light border-secondary" required>
+        <select name="loan_type" class="form-select form-select-sm" required>
           <option value="given">Given (I lent money)</option>
           <option value="taken">Taken (I borrowed money)</option>
         </select>
       </div>
       <div class="col-12 col-sm-6 col-md-3">
         <label class="form-label-sm">Party Name *</label>
-        <select name="party_name" class="form-select form-select-sm bg-dark text-light border-secondary" required>
+        <select name="party_name" class="form-select form-select-sm" required>
           <option value="">— Select Client —</option>
           {% for c in clients %}
             <option value="{{ c.name }}">{{ c.name }}</option>
@@ -62,26 +63,26 @@
       </div>
       <div class="col-12 col-sm-6 col-md-2">
         <label class="form-label-sm">Principal (₹) *</label>
-        <input name="principal" type="number" step="0.01" min="0.01" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="0.00" required>
+        <input name="principal" type="number" step="0.01" min="0.01" class="form-control form-control-sm" placeholder="0.00" required>
       </div>
       <div class="col-12 col-sm-6 col-md-2">
         <label class="form-label-sm">Interest (% /yr)</label>
-        <input name="interest_rate" type="number" step="0.01" min="0" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="0 = None" value="0">
+        <input name="interest_rate" type="number" step="0.01" min="0" class="form-control form-control-sm" placeholder="0 = None" value="0">
       </div>
       <div class="col-12 col-sm-6 col-md-2">
         <label class="form-label-sm">Issue Date *</label>
-        <input name="date_issued" type="date" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ today }}" required>
+        <input name="date_issued" type="date" class="form-control form-control-sm" value="{{ today }}" required>
       </div>
       <div class="col-12 col-sm-6 col-md-2">
         <label class="form-label-sm">Due Date</label>
-        <input name="due_date" type="date" class="form-control form-control-sm bg-dark text-light border-secondary">
+        <input name="due_date" type="date" class="form-control form-control-sm">
       </div>
       <div class="col-12 col-md-6">
         <label class="form-label-sm">Notes</label>
-        <input name="notes" type="text" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Optional notes">
+        <input name="notes" type="text" class="form-control form-control-sm" placeholder="Optional notes">
       </div>
       <div class="col-12 col-md-2 d-flex align-items-end">
-        <button type="submit" class="btn btn-sm btn-info w-100">Save</button>
+        <button type="submit" class="btn btn-sm btn-primary w-100">Save</button>
       </div>
     </form>
   </div>
@@ -101,12 +102,12 @@
 
 <!-- Filter bar -->
 <div class="filter-bar mb-3">
-  <div class="btn-group btn-group-sm">
+  <div class="btn-group btn-group-sm shadow-sm">
     <a href="?type=all&status={{ filter_status }}"    class="btn btn-outline-secondary {% if filter_type == 'all'   %}active{% endif %}">All</a>
     <a href="?type=given&status={{ filter_status }}"  class="btn btn-outline-success  {% if filter_type == 'given' %}active{% endif %}">Given</a>
     <a href="?type=taken&status={{ filter_status }}"  class="btn btn-outline-danger   {% if filter_type == 'taken' %}active{% endif %}">Taken</a>
   </div>
-  <div class="btn-group btn-group-sm">
+  <div class="btn-group btn-group-sm shadow-sm">
     <a href="?type={{ filter_type }}&status=active"  class="btn btn-outline-secondary {% if filter_status == 'active' %}active{% endif %}">Active</a>
     <a href="?type={{ filter_type }}&status=closed"  class="btn btn-outline-secondary {% if filter_status == 'closed' %}active{% endif %}">Closed</a>
     <a href="?type={{ filter_type }}&status=all"     class="btn btn-outline-secondary {% if filter_status == 'all' %}active{% endif %}">All</a>
@@ -116,7 +117,7 @@
 <!-- Loan cards -->
 {% if loans %}
   {% for loan in loans %}
-  <div class="loan-card">
+  <div class="loan-card shadow-sm">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
       <div>
         <span class="party">{{ loan.party_name }}</span>
@@ -131,12 +132,12 @@
           · Issued: {{ loan.date_issued.strftime('%d %b %Y') }}
           {% if loan.due_date %} · Due: {{ loan.due_date.strftime('%d %b %Y') }}{% endif %}
         </div>
-        {% if loan.notes %}<div class="meta">{{ loan.notes }}</div>{% endif %}
+        {% if loan.notes %}<div class="meta text-dark">{{ loan.notes }}</div>{% endif %}
       </div>
       <div class="text-end">
         <div class="outstanding">₹{{ "%.2f"|format(loan.outstanding()) }}</div>
         <div class="meta">outstanding of ₹{{ "%.2f"|format(loan.total_due()) }}</div>
-        <a href="{{ url_for('loan_detail', loan_id=loan.id) }}" class="btn btn-sm btn-outline-secondary mt-1" style="font-size:.75rem;">
+        <a href="{{ url_for('loan_detail', loan_id=loan.id) }}" class="btn btn-sm btn-outline-primary mt-1" style="font-size:.75rem;">
           <i class="bi bi-eye me-1"></i>View
         </a>
       </div>
