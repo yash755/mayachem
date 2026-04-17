@@ -2450,6 +2450,16 @@ def register_routes(app: Flask) -> None:
         categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
         return render_template("expense_categories.html", categories=categories)
 
+    @app.route("/expense-categories/edit/<int:id>", methods=["POST"])
+    def expense_categories_edit(id):
+        cat = ExpenseCategory.query.get_or_404(id)
+        name = request.form.get("name")
+        if name:
+            cat.name = name
+            db.session.commit()
+            flash("Category updated", "success")
+        return redirect(url_for("expense_categories"))
+
     @app.route("/expense-categories/<int:id>/delete", methods=["POST"])
     def expense_categories_delete(id):
         cat = ExpenseCategory.query.get_or_404(id)
@@ -2473,6 +2483,16 @@ def register_routes(app: Flask) -> None:
         
         products = Product.query.order_by(Product.name.asc()).all()
         return render_template("products_list.html", products=products)
+
+    @app.route("/product/<int:id>/edit", methods=["POST"])
+    def edit_product(id):
+        p = Product.query.get_or_404(id)
+        p.name = request.form.get("name")
+        p.min_stock_kg = float(request.form.get("min_stock") or 0)
+        p.current_stock_kg = float(request.form.get("current_stock") or 0)
+        db.session.commit()
+        flash(f"Product {p.name} updated", "success")
+        return redirect(url_for("products_list"))
 
     @app.route("/product/<int:id>/delete", methods=["POST"])
     def delete_product(id):
@@ -2892,6 +2912,8 @@ def register_routes(app: Flask) -> None:
     def expenses_list():
 
         q = (request.args.get("q") or "").strip()
+        category_filter = request.args.get("category")
+        month_filter = request.args.get("month")
 
         query = Expense.query
 
@@ -2899,6 +2921,12 @@ def register_routes(app: Flask) -> None:
             query = query.filter(
                 Expense.category.ilike(f"%{q}%")
             )
+        
+        if category_filter:
+            query = query.filter(Expense.category == category_filter)
+        
+        if month_filter:
+            query = query.filter(db.func.strftime('%Y-%m', Expense.date) == month_filter)
 
         expenses = query.order_by(
             Expense.date.desc(),
@@ -2911,7 +2939,9 @@ def register_routes(app: Flask) -> None:
             "expenses_list.html",
             expenses=expenses,
             total=round(total,2),
-            q=q
+            q=q,
+            category_filter=category_filter,
+            month_filter=month_filter
         )
 
 

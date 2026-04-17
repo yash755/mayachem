@@ -267,3 +267,20 @@ video {
     color: white !important;
   }
 }
+
+/* Ensure modal text is visible on its light background */
+.modal-content {
+  background-color: #ffffff !important;
+  color: #212529 !important;
+}
+.modal-header .modal-title {
+  color: #212529 !important;
+  font-weight: 700 !important;
+}
+.modal-body label {
+  color: #495057 !important;
+  font-weight: 600 !important;
+}
+.modal-header .btn-close {
+  filter: none !important;
+}

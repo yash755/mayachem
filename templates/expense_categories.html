@@ -24,6 +24,9 @@
                     <tr>
                         <td class="ps-4 fw-medium">{{ cat.name }}</td>
                         <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editCategoryModal{{ cat.id }}">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
                             <form method="post" action="{{ url_for('expense_categories_delete', id=cat.id) }}" style="display:inline;" onsubmit="return confirm('Delete this category?');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">
                                     <i class="bi bi-trash"></i> Delete
@@ -33,7 +36,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td class="text-center py-5 text-muted">No categories found.</td>
+                        <td colspan="2" class="text-center py-5 text-muted">No categories found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -41,6 +44,30 @@
         </div>
     </div>
 </div>
+
+{% for cat in categories %}
+<!-- Edit Category Modal -->
+<div class="modal fade" id="editCategoryModal{{ cat.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+    <form method="post" action="{{ url_for('expense_categories_edit', id=cat.id) }}" class="modal-content">
+        <div class="modal-header">
+        <h5 class="modal-title">Edit Category</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-start">
+        <div class="mb-3">
+            <label class="form-label">Category Name</label>
+            <input type="text" name="name" class="form-control" value="{{ cat.name }}" required>
+        </div>
+        </div>
+        <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+    </form>
+    </div>
+</div>
+{% endfor %}
 
 <!-- Add Category Modal -->
 <div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true">
@@ -58,7 +85,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="submit" class="btn btn-primary">Add</button>
       </div>
     </form>
   </div>

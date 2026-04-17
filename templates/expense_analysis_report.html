@@ -58,8 +58,11 @@
                                 {% for cat, data in report.items() %}
                                 <tr>
                                     <td class="ps-4 fw-medium">{{ cat }}</td>
-                                    <td class="text-center"><span class="badge bg-light text-dark border">{{ data.count
-                                            }}</span></td>
+                                    <td class="text-center">
+                                        <a href="{{ url_for('expenses_list', category=cat, month=selected_month) }}" class="badge bg-light text-dark border text-decoration-none">
+                                            {{ data.count }}
+                                        </a>
+                                    </td>
                                     <td class="text-end fw-bold">₹{{ "%.0f"|format(data.amount) }}</td>
                                     <td class="text-end pe-4">
                                         <div class="d-flex align-items-center justify-content-end">

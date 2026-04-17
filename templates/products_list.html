@@ -39,6 +39,9 @@
                                             {% endif %}
                                     </td>
                                     <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-secondary px-2 py-1" data-bs-toggle="modal" data-bs-target="#editProductModal{{ p.id }}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
                                         <form method="post" action="{{ url_for('delete_product', id=p.id) }}"
                                             style="display:inline;" onsubmit="return confirm('Delete this product?');">
                                             <button class="btn btn-sm btn-outline-danger px-2 py-1">
@@ -69,6 +72,41 @@
         </div>
     </div>
 </div>
+
+{% for p in products %}
+<!-- Edit Product Modal -->
+<div class="modal fade" id="editProductModal{{ p.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form method="post" action="{{ url_for('edit_product', id=p.id) }}">
+                <div class="modal-header bg-secondary text-white border-0">
+                    <h5 class="modal-title fw-bold">Edit Product: {{ p.name }}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-start">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Product Name</label>
+                        <input type="text" name="name" class="form-control" value="{{ p.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Current Stock (kg)</label>
+                        <input type="number" step="0.1" name="current_stock" class="form-control" value="{{ p.current_stock_kg }}">
+                        <div class="form-text">Manually adjust stock if needed.</div>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label fw-semibold">Minimum Stock Alert (kg)</label>
+                        <input type="number" step="0.1" name="min_stock" class="form-control" value="{{ p.min_stock_kg }}">
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
 
 <!-- Add Product Modal -->
 <div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">

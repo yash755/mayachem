@@ -1,46 +1,88 @@
 {% extends "base.html" %}
-{% block content %}
+{% block title %}Expense Transactions{% endblock %}
 
-<div class="d-flex justify-content-between mb-3">
-<h3>Expenses</h3>
-<a href="{{ url_for('expenses_form') }}"
-class="btn btn-primary">+ Add</a>
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="bi bi-list-check me-2 text-primary"></i> Expenses</h3>
+    <a href="{{ url_for('expenses_form') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Add Expense
+    </a>
 </div>
 
-<h5>Total Expense: ₹ {{ total }}</h5>
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-4">
+        <form method="get" class="row g-3">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="q" class="form-control border-start-0" placeholder="Search by description or category..." value="{{ q or '' }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <input type="month" name="month" class="form-control" value="{{ month_filter or '' }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{{ url_for('expenses_list') }}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
 
-<table class="table">
-<tr>
-<th>Date</th>
-<th>Category</th>
-<th>Description</th>
-<th>Amount</th>
-<th></th>
-</tr>
+{% if category_filter or month_filter or q %}
+<div class="mb-3">
+    <span class="text-muted small">Active Filters:</span>
+    {% if category_filter %}<span class="badge bg-primary-subtle text-primary border rounded-pill px-3 ms-1">{{ category_filter }}</span>{% endif %}
+    {% if month_filter %}<span class="badge bg-primary-subtle text-primary border rounded-pill px-3 ms-1">{{ month_filter }}</span>{% endif %}
+    {% if q %}<span class="badge bg-primary-subtle text-primary border rounded-pill px-3 ms-1">"{{ q }}"</span>{% endif %}
+</div>
+{% endif %}
 
-{% for e in expenses %}
-<tr>
-<td>{{ e.date }}</td>
-<td>{{ e.category }}</td>
-<td>{{ e.description }}</td>
-<td>₹ {{ e.amount }}</td>
-<td>
-<a href="{{ url_for('expenses_form',
-expense_id=e.id) }}"
-class="btn btn-sm btn-outline-primary">Edit</a>
-
-<form method="post"
-action="{{ url_for('expenses_delete',
-expense_id=e.id) }}"
-style="display:inline">
-<button class="btn btn-sm btn-danger">
-Delete
-</button>
-</form>
-</td>
-</tr>
-{% endfor %}
-
-</table>
-
+<div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold">Transaction History</h5>
+        <h5 class="mb-0 text-primary fw-bold">Total: ₹ {{ "%.2f"|format(total) }}</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4">Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th class="text-end">Amount</th>
+                    <th class="text-end pe-4">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in expenses %}
+                <tr>
+                    <td class="ps-4 text-muted">{{ e.date }}</td>
+                    <td><span class="badge bg-light text-dark border fw-medium">{{ e.category }}</span></td>
+                    <td>{{ e.description }}</td>
+                    <td class="text-end fw-bold">₹ {{ "%.2f"|format(e.amount) }}</td>
+                    <td class="text-end pe-4">
+                        <div class="btn-group">
+                            <a href="{{ url_for('expenses_form', expense_id=e.id) }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="post" action="{{ url_for('expenses_delete', expense_id=e.id) }}" onsubmit="return confirm('Delete this expense?');">
+                                <button class="btn btn-sm btn-outline-danger ms-1">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-5 text-muted">No expenses found for this selection.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}
