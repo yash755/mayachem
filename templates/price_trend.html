@@ -16,6 +16,7 @@
       <div class="col-12 col-md-3">
         <label class="form-label text-light small fw-bold">TRANSACTION TYPE</label>
         <select class="form-select" name="txn_type" id="txn_type">
+          <option value="all">Show All (Compare)</option>
           <option value="sale">Sales Only</option>
           <option value="purchase">Purchases Only</option>
         </select>
@@ -116,7 +117,7 @@ $(document).ready(function() {
                 $('#loading').hide();
                 
                 // Filter by type
-                const filteredData = data.filter(d => d.type === txnType);
+                const filteredData = txnType === 'all' ? data : data.filter(d => d.type === txnType);
 
                 if (!filteredData || filteredData.length === 0) {
                     $('#noData').show();
@@ -129,8 +130,10 @@ $(document).ready(function() {
                 // Update Badge
                 if (txnType === 'sale') {
                     $('#typeBadge').html('<span class="badge bg-success">Showing Sales Only</span>');
-                } else {
+                } else if (txnType === 'purchase') {
                     $('#typeBadge').html('<span class="badge bg-danger">Showing Purchases Only</span>');
+                } else {
+                    $('#typeBadge').html('<span class="badge bg-primary">Showing All Transactions</span>');
                 }
 
                 // Sort data by date for the trend
@@ -147,10 +150,10 @@ $(document).ready(function() {
                         labels: filteredData.map(d => `${d.date} (${d.party})`),
                         datasets: [
                             {
-                                label: txnType === 'sale' ? 'Sales Volume (KG)' : 'Purchase Volume (KG)',
+                                label: 'Volume (KG)',
                                 data: filteredData.map(d => d.qty),
-                                backgroundColor: txnType === 'sale' ? 'rgba(25, 135, 84, 0.7)' : 'rgba(220, 53, 69, 0.7)',
-                                borderColor: txnType === 'sale' ? '#198754' : '#dc3545',
+                                backgroundColor: filteredData.map(d => d.type === 'sale' ? 'rgba(25, 135, 84, 0.7)' : 'rgba(220, 53, 69, 0.7)'),
+                                borderColor: filteredData.map(d => d.type === 'sale' ? '#198754' : '#dc3545'),
                                 borderWidth: 1,
                                 rates: filteredData.map(d => d.rate)
                             }
