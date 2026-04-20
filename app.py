@@ -3274,6 +3274,7 @@ def register_cli(app: Flask) -> None:
                 "id": sale.id,
                 "date": sale.date.isoformat(),
                 "rate": item.selling_rate_per_kg or 0.0,
+                "cp": item.cost_rate_per_kg or 0.0,
                 "qty": sale_item_actual_kg(item),
                 "type": "sale",
                 "party": sale.client_name
@@ -3284,6 +3285,7 @@ def register_cli(app: Flask) -> None:
                 "id": pur.id,
                 "date": pur.date.isoformat(),
                 "rate": item.rate_per_kg or 0.0,
+                "cp": item.rate_per_kg or 0.0,
                 "qty": item.quantity_kg,
                 "type": "purchase",
                 "party": pur.vendor_name
