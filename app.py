@@ -3271,6 +3271,7 @@ def register_cli(app: Flask) -> None:
         results = []
         for item, sale in sales_data:
             results.append({
+                "id": sale.id,
                 "date": sale.date.isoformat(),
                 "rate": item.selling_rate_per_kg or 0.0,
                 "qty": sale_item_actual_kg(item),
@@ -3280,6 +3281,7 @@ def register_cli(app: Flask) -> None:
         
         for item, pur in purchase_data:
             results.append({
+                "id": pur.id,
                 "date": pur.date.isoformat(),
                 "rate": item.rate_per_kg or 0.0,
                 "qty": item.quantity_kg,

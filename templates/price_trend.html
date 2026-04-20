@@ -170,7 +170,8 @@ $(document).ready(function() {
                             y: {
                                 title: { display: true, text: 'Volume (KG)', color: '#fff' },
                                 grid: { color: 'rgba(255,255,255,0.05)' },
-                                ticks: { color: '#b0c4de' }
+                                ticks: { color: '#b0c4de' },
+                                grace: '15%' // Add extra space at the top to prevent labels from trimming
                             }
                         },
                         plugins: {
@@ -179,11 +180,25 @@ $(document).ready(function() {
                                 callbacks: {
                                     afterBody: function(context) {
                                         const idx = context[0].dataIndex;
-                                        const d = data[idx];
-                                        return `Rate: ₹${d.rate.toLocaleString()}/kg\nTotal: ₹${(d.rate * d.qty).toLocaleString()}`;
+                                        const d = filteredData[idx];
+                                        return `Rate: ₹${d.rate.toLocaleString()}/kg\nTotal: ₹${(d.rate * d.qty).toLocaleString()}\n\nClick to view details`;
                                     }
                                 }
                             }
+                        },
+                        onClick: (event, elements) => {
+                            if (elements.length > 0) {
+                                const idx = elements[0].index;
+                                const d = filteredData[idx];
+                                if (d.type === 'sale') {
+                                    window.location.href = `/sales/${d.id}/edit`;
+                                } else {
+                                    window.location.href = `/purchase/${d.id}/edit`;
+                                }
+                            }
+                        },
+                        onHover: (event, elements) => {
+                            event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
                         }
                     },
                     plugins: [{
