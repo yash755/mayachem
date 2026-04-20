@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+  <div class="col-12 col-md-6">
+    <h2 class="mb-0 text-white font-weight-bold">
+      <i class="bi bi-graph-up text-primary me-2"></i> Price Trend Analysis
+    </h2>
+    <p class="text-muted mb-0">Visualize price and margin history across sales and purchases.</p>
+  </div>
+</div>
+
+<div class="card shadow-lg border-0 bg-dark-subtle mb-4" style="background: rgba(255,255,255,0.03);">
+  <div class="card-body p-4">
+    <form id="filterForm" class="row g-3">
+      <div class="col-12 col-md-4">
+        <label class="form-label text-light small fw-bold">SELECT PRODUCT</label>
+        <select class="form-select select2" name="product_id" id="product_id" required>
+          <option value="">-- Search Product --</option>
+          {% for p in products %}
+          <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label text-light small fw-bold">FILTER BY CLIENT (SALES)</label>
+        <select class="form-select select2" name="client_id" id="client_id">
+          <option value="">-- All Clients --</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label text-light small fw-bold">FILTER BY VENDOR (PURCHASES)</label>
+        <select class="form-select select2" name="vendor_name" id="vendor_name">
+          <option value="">-- All Vendors --</option>
+          {% for v in vendors %}
+          <option value="{{ v }}">{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-lg border-0 bg-dark p-3" id="chartContainer" style="display: none; min-height: 400px; background: #1a1f26;">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="card-title text-white mb-0" id="productTitle">Product Trend</h5>
+        <div>
+            <span class="badge bg-success me-2"><i class="bi bi-circle-fill small me-1"></i> Sales</span>
+            <span class="badge bg-danger"><i class="bi bi-circle-fill small me-1"></i> Purchases</span>
+        </div>
+    </div>
+    <div style="position: relative; height:60vh; width:100%">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<div id="noData" class="text-center py-5" style="display: none;">
+    <i class="bi bi-bar-chart text-muted display-1"></i>
+    <h4 class="text-muted mt-3">No data found for selected criteria</h4>
+</div>
+
+<div id="loading" class="text-center py-5" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <h5 class="text-light mt-3">Fetching price history...</h5>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Load date-fns adapter for Chart.js time scale -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    $('.select2').select2({
+        theme: 'bootstrap-5',
+        width: '100%'
+    });
+
+    let priceChart = null;
+
+    function updateChart() {
+        const productId = $('#product_id').val();
+        if (!productId) {
+            $('#chartContainer').hide();
+            $('#noData').hide();
+            return;
+        }
+
+        const clientId = $('#client_id').val();
+        const vendorName = $('#vendor_name').val();
+
+        $('#loading').show();
+        $('#chartContainer').hide();
+        $('#noData').hide();
+
+        const url = `/api/reports/price-history?product_id=${productId}&client_id=${clientId}&vendor_name=${encodeURIComponent(vendorName)}`;
+        
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                $('#loading').hide();
+                if (!data || data.length === 0) {
+                    $('#noData').show();
+                    return;
+                }
+
+                $('#chartContainer').show();
+                $('#productTitle').text($('#product_id option:selected').text() + " History");
+
+                // Sort data by date for the line trend
+                data.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                const sales = data.filter(d => d.type === 'sale');
+                const purchases = data.filter(d => d.type === 'purchase');
+
+                if (priceChart) {
+                    priceChart.destroy();
+                }
+
+                const ctx = document.getElementById('priceChart').getContext('2d');
+                priceChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.map(d => `${d.date} (${d.party})`),
+                        datasets: [
+                            {
+                                label: 'Volume (KG)',
+                                data: data.map(d => d.qty),
+                                backgroundColor: data.map(d => d.type === 'sale' ? 'rgba(25, 135, 84, 0.7)' : 'rgba(220, 53, 69, 0.7)'),
+                                borderColor: data.map(d => d.type === 'sale' ? '#198754' : '#dc3545'),
+                                borderWidth: 1,
+                                rates: data.map(d => d.rate) // Store rates for labels/tooltips
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#b0c4de', font: { size: 10 } }
+                            },
+                            y: {
+                                title: { display: true, text: 'Volume (KG)', color: '#fff' },
+                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                ticks: { color: '#b0c4de' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    afterBody: function(context) {
+                                        const idx = context[0].dataIndex;
+                                        const d = data[idx];
+                                        return `Rate: ₹${d.rate.toLocaleString()}/kg\nTotal: ₹${(d.rate * d.qty).toLocaleString()}`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    plugins: [{
+                        id: 'topLabels',
+                        afterDatasetsDraw(chart) {
+                            const {ctx, data} = chart;
+                            ctx.save();
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'bottom';
+                            ctx.font = 'bold 12px sans-serif';
+                            ctx.fillStyle = '#fff';
+
+                            chart.getDatasetMeta(0).data.forEach((bar, index) => {
+                                const rate = data.datasets[0].rates[index];
+                                ctx.fillText(`₹${rate}`, bar.x, bar.y - 5);
+                            });
+                            ctx.restore();
+                        }
+                    }]
+                });
+            });
+    }
+
+    $('#product_id, #client_id, #vendor_name').on('change', updateChart);
+});
+</script>
+{% endblock %}

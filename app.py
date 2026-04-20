@@ -3230,6 +3230,65 @@ def register_cli(app: Flask) -> None:
         flash("Repayment deleted.", "info")
         return redirect(url_for("loan_detail", loan_id=loan_id))
 
+    @app.route("/reports/price-trend")
+    def price_trend_report():
+        products = Product.query.order_by(Product.name).all()
+        clients = Client.query.order_by(Client.name).all()
+        # Get distinct vendor names from Purchases
+        vendors = db.session.query(Purchase.vendor_name).distinct().all()
+        vendor_list = [v[0] for v in vendors if v[0]]
+        return render_template("price_trend.html", 
+                               products=products, 
+                               clients=clients, 
+                               vendors=sorted(vendor_list))
+
+    @app.route("/api/reports/price-history")
+    def price_history_api():
+        product_id = request.args.get("product_id", type=int)
+        client_id = request.args.get("client_id", type=int)
+        vendor_name = request.args.get("vendor_name")
+
+        if not product_id:
+            return jsonify([])
+
+        # 1. Fetch Sales
+        sales_query = db.session.query(SaleItem, Sale).join(Sale).filter(SaleItem.product_id == product_id)
+        if client_id:
+            client = Client.query.get(client_id)
+            if client:
+                sales_query = sales_query.filter(Sale.client_name == client.name)
+        
+        sales_data = sales_query.order_by(Sale.date.desc()).limit(10).all()
+
+        # 2. Fetch Purchases
+        purchase_query = db.session.query(PurchaseItem, Purchase).join(Purchase).filter(PurchaseItem.product_id == product_id)
+        if vendor_name:
+            purchase_query = purchase_query.filter(Purchase.vendor_name == vendor_name)
+        
+        purchase_data = purchase_query.order_by(Purchase.date.desc()).limit(10).all()
+
+        # 3. Combine and Format
+        results = []
+        for item, sale in sales_data:
+            results.append({
+                "date": sale.date.isoformat(),
+                "rate": item.selling_rate_per_kg or 0.0,
+                "qty": sale_item_actual_kg(item),
+                "type": "sale",
+                "party": sale.client_name
+            })
+        
+        for item, pur in purchase_data:
+            results.append({
+                "date": pur.date.isoformat(),
+                "rate": item.rate_per_kg or 0.0,
+                "qty": item.quantity_kg,
+                "type": "purchase",
+                "party": pur.vendor_name
+            })
+
+        return jsonify(results)
+
 
 # -----------------------------------------------------------------------------
 # Run (local dev)
