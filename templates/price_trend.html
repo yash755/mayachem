@@ -13,7 +13,14 @@
 <div class="card shadow-lg border-0 bg-dark-subtle mb-4" style="background: rgba(255,255,255,0.03);">
   <div class="card-body p-4">
     <form id="filterForm" class="row g-3">
-      <div class="col-12 col-md-4">
+      <div class="col-12 col-md-3">
+        <label class="form-label text-light small fw-bold">TRANSACTION TYPE</label>
+        <select class="form-select" name="txn_type" id="txn_type">
+          <option value="sale">Sales Only</option>
+          <option value="purchase">Purchases Only</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
         <label class="form-label text-light small fw-bold">SELECT PRODUCT</label>
         <select class="form-select select2" name="product_id" id="product_id" required>
           <option value="">-- Search Product --</option>
@@ -22,8 +29,8 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-12 col-md-4">
-        <label class="form-label text-light small fw-bold">FILTER BY CLIENT (SALES)</label>
+      <div class="col-12 col-md-3">
+        <label class="form-label text-light small fw-bold">CLIENT (FOR SALES)</label>
         <select class="form-select select2" name="client_id" id="client_id">
           <option value="">-- All Clients --</option>
           {% for c in clients %}
@@ -31,8 +38,8 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-12 col-md-4">
-        <label class="form-label text-light small fw-bold">FILTER BY VENDOR (PURCHASES)</label>
+      <div class="col-12 col-md-3">
+        <label class="form-label text-light small fw-bold">VENDOR (FOR PURCHASES)</label>
         <select class="form-select select2" name="vendor_name" id="vendor_name">
           <option value="">-- All Vendors --</option>
           {% for v in vendors %}
@@ -48,9 +55,8 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="card-title text-white mb-0" id="productTitle">Product Trend</h5>
-        <div>
-            <span class="badge bg-success me-2"><i class="bi bi-circle-fill small me-1"></i> Sales</span>
-            <span class="badge bg-danger"><i class="bi bi-circle-fill small me-1"></i> Purchases</span>
+        <div id="typeBadge">
+            <!-- Dynamic Badge -->
         </div>
     </div>
     <div style="position: relative; height:60vh; width:100%">
@@ -101,25 +107,34 @@ $(document).ready(function() {
         $('#chartContainer').hide();
         $('#noData').hide();
 
+        const txnType = $('#txn_type').val();
         const url = `/api/reports/price-history?product_id=${productId}&client_id=${clientId}&vendor_name=${encodeURIComponent(vendorName)}`;
         
         fetch(url)
             .then(res => res.json())
             .then(data => {
                 $('#loading').hide();
-                if (!data || data.length === 0) {
+                
+                // Filter by type
+                const filteredData = data.filter(d => d.type === txnType);
+
+                if (!filteredData || filteredData.length === 0) {
                     $('#noData').show();
                     return;
                 }
 
                 $('#chartContainer').show();
-                $('#productTitle').text($('#product_id option:selected').text() + " History");
+                $('#productTitle').text($('#product_id option:selected').text());
+                
+                // Update Badge
+                if (txnType === 'sale') {
+                    $('#typeBadge').html('<span class="badge bg-success">Showing Sales Only</span>');
+                } else {
+                    $('#typeBadge').html('<span class="badge bg-danger">Showing Purchases Only</span>');
+                }
 
-                // Sort data by date for the line trend
-                data.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                const sales = data.filter(d => d.type === 'sale');
-                const purchases = data.filter(d => d.type === 'purchase');
+                // Sort data by date for the trend
+                filteredData.sort((a, b) => new Date(a.date) - new Date(b.date));
 
                 if (priceChart) {
                     priceChart.destroy();
@@ -129,15 +144,15 @@ $(document).ready(function() {
                 priceChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: data.map(d => `${d.date} (${d.party})`),
+                        labels: filteredData.map(d => `${d.date} (${d.party})`),
                         datasets: [
                             {
-                                label: 'Volume (KG)',
-                                data: data.map(d => d.qty),
-                                backgroundColor: data.map(d => d.type === 'sale' ? 'rgba(25, 135, 84, 0.7)' : 'rgba(220, 53, 69, 0.7)'),
-                                borderColor: data.map(d => d.type === 'sale' ? '#198754' : '#dc3545'),
+                                label: txnType === 'sale' ? 'Sales Volume (KG)' : 'Purchase Volume (KG)',
+                                data: filteredData.map(d => d.qty),
+                                backgroundColor: txnType === 'sale' ? 'rgba(25, 135, 84, 0.7)' : 'rgba(220, 53, 69, 0.7)',
+                                borderColor: txnType === 'sale' ? '#198754' : '#dc3545',
                                 borderWidth: 1,
-                                rates: data.map(d => d.rate) // Store rates for labels/tooltips
+                                rates: filteredData.map(d => d.rate)
                             }
                         ]
                     },
@@ -189,7 +204,7 @@ $(document).ready(function() {
             });
     }
 
-    $('#product_id, #client_id, #vendor_name').on('change', updateChart);
+    $('#product_id, #client_id, #vendor_name, #txn_type').on('change', updateChart);
 });
 </script>
 {% endblock %}
