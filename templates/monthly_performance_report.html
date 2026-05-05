@@ -7,6 +7,38 @@
   <h3 class="mb-0 fw-bold"><i class="bi bi-graph-up text-primary me-2"></i> Monthly Performance Report</h3>
 </div>
 
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card p-3 shadow-sm border-0" style="border-left: 4px solid #0d6efd !important;">
+      <h6 class="text-muted small mb-1">Client Receivables</h6>
+      <h4 class="text-primary mb-0">₹ {{ "{:,.2f}".format(total_receivable) }}</h4>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 shadow-sm border-0" style="border-left: 4px solid #198754 !important;">
+      <h6 class="text-muted small mb-1">Stock Value (In House)</h6>
+      <h4 class="text-success mb-0">₹ {{ "{:,.2f}".format(stock_value) }}</h4>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 shadow-sm border-0" style="border-left: 4px solid #dc3545 !important;">
+      <h6 class="text-muted small mb-1">Vendor Payables</h6>
+      <h4 class="text-danger mb-0">₹ {{ "{:,.2f}".format(total_payable) }}</h4>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 shadow-sm border-0 {% if net_position >= 0 %}bg-success{% else %}bg-danger{% endif %} text-white">
+      <h6 class="small mb-1">
+        Net Working Capital
+        <i class="bi bi-info-circle-fill ms-1" style="font-size: 0.8rem; cursor: help;" 
+           data-bs-toggle="tooltip" 
+           data-bs-title="Receivables + Stock - Payables"></i>
+      </h6>
+      <h4 class="mb-0">₹ {{ "{:,.2f}".format(net_position) }}</h4>
+    </div>
+  </div>
+</div>
+
 <div class="card shadow-sm mb-4">
   <div class="card-header fw-bold bg-white">
     📈 All Months Performance

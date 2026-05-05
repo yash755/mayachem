@@ -379,6 +379,7 @@ class Product(db.Model):
     name = db.Column(db.String(160), nullable=False, unique=True)
     current_stock_kg = db.Column(db.Float, nullable=False, default=0.0)
     min_stock_kg = db.Column(db.Float, nullable=False, default=0.0)
+    valuation_rate = db.Column(db.Float, nullable=False, default=0.0)
     
     def change_stock(self, amount):
         self.current_stock_kg = round((self.current_stock_kg or 0.0) + amount, 2)
@@ -2493,8 +2494,9 @@ def register_routes(app: Flask) -> None:
         if request.method == "POST":
             name = request.form.get("name")
             min_stock = float(request.form.get("min_stock") or 0)
+            val_rate = float(request.form.get("valuation_rate") or 0)
             if name:
-                p = Product(name=name, min_stock_kg=min_stock)
+                p = Product(name=name, min_stock_kg=min_stock, valuation_rate=val_rate)
                 db.session.add(p)
                 db.session.commit()
                 flash(f"Product {name} added", "success")
@@ -2509,6 +2511,7 @@ def register_routes(app: Flask) -> None:
         p.name = request.form.get("name")
         p.min_stock_kg = float(request.form.get("min_stock") or 0)
         p.current_stock_kg = float(request.form.get("current_stock") or 0)
+        p.valuation_rate = float(request.form.get("valuation_rate") or 0)
         db.session.commit()
         flash(f"Product {p.name} updated", "success")
         return redirect(url_for("products_list"))
@@ -2599,7 +2602,20 @@ def register_routes(app: Flask) -> None:
             "pl": round(total_pl, 2)
         }
 
-        return render_template("monthly_performance_report.html", monthly=monthly, totals=totals)
+        total_receivable = round(sum(s.balance_due() for s in Sale.query.all()), 2)
+        total_payable = round(sum(p.balance_due() for p in Purchase.query.all()), 2)
+        stock_value = round(sum(p.current_stock_kg * p.valuation_rate for p in Product.query.all()), 2)
+        net_position = round(total_receivable + stock_value - total_payable, 2)
+
+        return render_template(
+            "monthly_performance_report.html",
+            monthly=monthly,
+            totals=totals,
+            total_receivable=total_receivable,
+            total_payable=total_payable,
+            stock_value=stock_value,
+            net_position=net_position
+        )
 
     @app.route("/reports/monthly-pivot")
     def monthly_pivot_report():

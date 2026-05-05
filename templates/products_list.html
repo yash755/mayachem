@@ -19,6 +19,7 @@
                             <thead class="bg-light">
                                 <tr>
                                     <th class="ps-4">Product Name</th>
+                                    <th class="text-end">Valuation (₹/kg)</th>
                                     <th class="text-end">Min Stock (kg)</th>
                                     <th class="text-end">Current Stock (kg)</th>
                                     <th class="text-center">Status</th>
@@ -29,6 +30,7 @@
                                 {% for p in products %}
                                 <tr>
                                     <td class="ps-4 fw-medium">{{ p.name }}</td>
+                                    <td class="text-end">₹{{ "%.2f"|format(p.valuation_rate) }}</td>
                                     <td class="text-end text-muted">{{ "%.1f"|format(p.min_stock_kg) }} kg</td>
                                     <td class="text-end fw-bold">{{ "%.1f"|format(p.current_stock_kg) }} kg</td>
                                     <td class="text-center">
@@ -93,6 +95,11 @@
                         <input type="number" step="0.1" name="current_stock" class="form-control" value="{{ p.current_stock_kg }}">
                         <div class="form-text">Manually adjust stock if needed.</div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Valuation Rate (₹/kg)</label>
+                        <input type="number" step="0.01" name="valuation_rate" class="form-control" value="{{ p.valuation_rate }}">
+                        <div class="form-text">Manual stock valuation rate.</div>
+                    </div>
                     <div class="mb-0">
                         <label class="form-label fw-semibold">Minimum Stock Alert (kg)</label>
                         <input type="number" step="0.1" name="min_stock" class="form-control" value="{{ p.min_stock_kg }}">
@@ -123,6 +130,10 @@
                         <label class="form-label fw-semibold">Product Name</label>
                         <input type="text" name="name" class="form-control" placeholder="e.g. Hydrochloric Acid 33%"
                             required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Valuation Rate (₹/kg)</label>
+                        <input type="number" step="0.01" name="valuation_rate" class="form-control" value="0.0">
                     </div>
                     <div class="mb-0">
                         <label class="form-label fw-semibold">Minimum Stock Alert (kg)</label>
