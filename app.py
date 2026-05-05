@@ -2583,7 +2583,23 @@ def register_routes(app: Flask) -> None:
                 "pl": round(net_pl, 2)
             })
 
-        return render_template("monthly_performance_report.html", monthly=monthly)
+        total_qty = sum(m["qty_kg"] for m in monthly)
+        total_sp = sum(m["sp"] for m in monthly)
+        total_cp = sum(m["cp"] for m in monthly)
+        total_freight = sum(m["freight"] for m in monthly)
+        total_expense = sum(m["expense"] for m in monthly)
+        total_pl = sum(m["pl"] for m in monthly)
+
+        totals = {
+            "qty_kg": round(total_qty, 2),
+            "sp": round(total_sp, 2),
+            "cp": round(total_cp, 2),
+            "freight": round(total_freight, 2),
+            "expense": round(total_expense, 2),
+            "pl": round(total_pl, 2)
+        }
+
+        return render_template("monthly_performance_report.html", monthly=monthly, totals=totals)
 
     @app.route("/reports/monthly-pivot")
     def monthly_pivot_report():
