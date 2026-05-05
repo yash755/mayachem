@@ -2526,6 +2526,65 @@ def register_routes(app: Flask) -> None:
         products = Product.query.all()
         return render_template("stock_report.html", products=products)
 
+    @app.route("/reports/monthly-performance")
+    def monthly_performance_report():
+        monthly_raw = db.session.execute(
+            text("""
+            SELECT ym,
+                ROUND(SUM(qty_kg),2) qty_kg,
+                ROUND(SUM(sp),2) sp,
+                ROUND(SUM(cp),2) cp,
+                ROUND(SUM(freight),2) freight
+            FROM (
+                SELECT
+                    strftime('%Y-%m', sale.date) ym,
+                    sale.id,
+                    SUM(sale_item.quantity_kg) qty_kg,
+                    SUM(sale_item.selling_rate_per_kg * sale_item.quantity_kg) sp,
+                    SUM(sale_item.cost_rate_per_kg * sale_item.quantity_kg) cp,
+                    COALESCE(sale.freight,0) freight
+                FROM sale
+                JOIN sale_item ON sale_item.sale_id = sale.id
+                GROUP BY sale.id
+            ) per_sale
+            GROUP BY ym
+            ORDER BY ym DESC
+            """)
+        ).mappings().all()
+
+        expense_monthly = dict(
+            db.session.query(
+                func.strftime('%Y-%m', Expense.date),
+                func.sum(Expense.amount)
+            )
+            .group_by(func.strftime('%Y-%m', Expense.date))
+            .all()
+        )
+
+        monthly = []
+        for m in monthly_raw:
+            ym = m["ym"]
+            qty = float(m["qty_kg"] or 0)
+            sp = float(m["sp"] or 0)
+            cp = float(m["cp"] or 0)
+            freight = float(m["freight"] or 0)
+            expense = float(expense_monthly.get(ym, 0) or 0)
+
+            gross_pl = sp - (cp + freight)
+            net_pl = gross_pl - expense
+
+            monthly.insert(0, {
+                "ym": ym,
+                "qty_kg": qty,
+                "sp": sp,
+                "cp": cp,
+                "freight": freight,
+                "expense": round(expense, 2),
+                "pl": round(net_pl, 2)
+            })
+
+        return render_template("monthly_performance_report.html", monthly=monthly)
+
     @app.route("/reports/monthly-pivot")
     def monthly_pivot_report():
         from collections import defaultdict
