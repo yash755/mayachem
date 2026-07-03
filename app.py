@@ -2602,13 +2602,82 @@ def register_routes(app: Flask) -> None:
         
         estimated_valuation = round(current_stock * (p.valuation_rate or 0.0), 2)
         
+        # 5. Compute FIFO remaining stock batch breakdown
+        fifo_purchases = sorted(
+            [
+                {
+                    "date": purchase.date,
+                    "vendor": purchase.vendor_name,
+                    "qty": item.quantity_kg or 0.0,
+                    "rate": item.rate_per_kg or 0.0,
+                    "purchase_id": purchase.id
+                }
+                for item, purchase in purchases_query
+            ],
+            key=lambda x: (x["date"], x["purchase_id"])
+        )
+        
+        sales_to_consume = total_reduced
+        breakdown = []
+        
+        for p_batch in fifo_purchases:
+            p_qty = p_batch["qty"]
+            if sales_to_consume >= p_qty:
+                sales_to_consume -= p_qty
+            else:
+                remaining_qty = p_qty - sales_to_consume
+                sales_to_consume = 0.0
+                if remaining_qty > 0:
+                    breakdown.append({
+                        "date": p_batch["date"],
+                        "vendor": p_batch["vendor"],
+                        "remaining_qty": round(remaining_qty, 2),
+                        "rate": p_batch["rate"],
+                        "total_val": round(remaining_qty * p_batch["rate"], 2),
+                        "ref_url": url_for("edit_purchase", purchase_id=p_batch["purchase_id"]),
+                        "ref_text": f"Purchase #{p_batch['purchase_id']}"
+                    })
+                    
+        # Reconcile with actual current stock
+        total_breakdown_qty = sum(b["remaining_qty"] for b in breakdown)
+        
+        if current_stock > total_breakdown_qty:
+            excess_qty = round(current_stock - total_breakdown_qty, 2)
+            breakdown.insert(0, {
+                "date": None,
+                "vendor": "Opening Stock / Adjustment",
+                "remaining_qty": excess_qty,
+                "rate": p.valuation_rate or 0.0,
+                "total_val": round(excess_qty * (p.valuation_rate or 0.0), 2),
+                "ref_url": None,
+                "ref_text": "System Baseline"
+            })
+        elif current_stock < total_breakdown_qty:
+            surplus = round(total_breakdown_qty - current_stock, 2)
+            reconciled_breakdown = []
+            for b in breakdown:
+                if surplus > 0:
+                    if b["remaining_qty"] <= surplus:
+                        surplus = round(surplus - b["remaining_qty"], 2)
+                    else:
+                        b["remaining_qty"] = round(b["remaining_qty"] - surplus, 2)
+                        b["total_val"] = round(b["remaining_qty"] * b["rate"], 2)
+                        surplus = 0.0
+                        reconciled_breakdown.append(b)
+                else:
+                    reconciled_breakdown.append(b)
+            breakdown = reconciled_breakdown
+            
+        breakdown.reverse()
+        
         return render_template(
             "product_ledger.html",
             product=p,
             ledger_entries=ledger_entries,
             total_added=round(total_added, 2),
             total_reduced=round(total_reduced, 2),
-            estimated_valuation=estimated_valuation
+            estimated_valuation=estimated_valuation,
+            stock_breakdown=breakdown
         )
 
     @app.route("/reports/stock")

@@ -121,6 +121,74 @@
     </div>
 </div>
 
+<!-- FIFO Stock Batch Breakdown -->
+<div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+    <div class="card-header bg-white border-0 py-3">
+        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Stock Valuation Breakdown (FIFO)</h5>
+        <p class="text-muted small mb-0">Breakdown of the current <strong>{{ "%.1f"|format(product.current_stock_kg) }} kg</strong> stock by purchase batches (oldest sales consumed first).</p>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4">Purchase Date</th>
+                        <th>Vendor / Batch Source</th>
+                        <th class="text-end">Remaining Qty</th>
+                        <th class="text-end">Rate (₹/kg)</th>
+                        <th class="text-end">Est. Remaining Value</th>
+                        <th class="text-end pe-4 d-print-none">Ref</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for batch in stock_breakdown %}
+                    <tr>
+                        <td class="ps-4">
+                            {% if batch.date %}
+                            {{ batch.date.strftime('%d-%b-%Y') }}
+                            {% else %}
+                            <span class="text-muted font-monospace">--</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if batch.date %}
+                            <span class="fw-medium text-dark">{{ batch.vendor }}</span>
+                            {% else %}
+                            <span class="text-muted italic">{{ batch.vendor }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold text-dark">
+                            {{ "%.1f"|format(batch.remaining_qty) }} kg
+                        </td>
+                        <td class="text-end text-muted">
+                            ₹{{ "%.2f"|format(batch.rate) }}
+                        </td>
+                        <td class="text-end fw-semibold text-primary">
+                            ₹{{ "%.2f"|format(batch.total_val) }}
+                        </td>
+                        <td class="text-end pe-4 d-print-none">
+                            {% if batch.ref_url %}
+                            <a href="{{ batch.ref_url }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            {% else %}
+                            <span class="text-muted small">--</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            No batches currently in stock. Stock is empty.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <!-- Detailed Transactions -->
 <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
     <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
