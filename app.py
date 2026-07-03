@@ -2524,6 +2524,93 @@ def register_routes(app: Flask) -> None:
         flash("Product deleted", "info")
         return redirect(url_for("products_list"))
 
+    @app.route("/product/<int:id>/ledger")
+    def product_stock_ledger(id):
+        p = Product.query.get_or_404(id)
+        
+        # 1. Fetch Purchase transactions
+        purchases_query = db.session.query(PurchaseItem, Purchase).join(Purchase).filter(PurchaseItem.product_id == id).all()
+        # 2. Fetch Sale transactions
+        sales_query = db.session.query(SaleItem, Sale).join(Sale).filter(SaleItem.product_id == id).all()
+        
+        # 3. Build a consolidated ledger list of transactions
+        ledger_entries = []
+        
+        total_added = 0.0
+        total_reduced = 0.0
+        
+        for item, purchase in purchases_query:
+            qty = item.quantity_kg or 0.0
+            total_added += qty
+            ledger_entries.append({
+                "date": purchase.date,
+                "type": "Purchase",
+                "party": purchase.vendor_name,
+                "qty_change": qty,
+                "rate": item.rate_per_kg or 0.0,
+                "total_val": round(qty * (item.rate_per_kg or 0.0), 2),
+                "ref_url": url_for("edit_purchase", purchase_id=purchase.id),
+                "ref_text": f"Purchase #{purchase.id}"
+            })
+            
+        for item, sale in sales_query:
+            qty = item.quantity_kg or 0.0
+            total_reduced += qty
+            ledger_entries.append({
+                "date": sale.date,
+                "type": "Sale",
+                "party": sale.client_name,
+                "qty_change": -qty,
+                "rate": item.selling_rate_per_kg or 0.0,
+                "total_val": round(qty * (item.selling_rate_per_kg or 0.0), 2),
+                "ref_url": url_for("sales_form", sale_id=sale.id),
+                "ref_text": f"Sale #{sale.id}"
+            })
+            
+        # Sort chronologically: oldest first for running balance calculation
+        ledger_entries.sort(key=lambda x: (x["date"], 0 if x["type"] == "Purchase" else 1))
+        
+        # 4. Compute running balance
+        current_stock = p.current_stock_kg or 0.0
+        starting_stock = round(current_stock - total_added + total_reduced, 2)
+        
+        running_bal = starting_stock
+        
+        # For each transaction, compute running balance
+        for entry in ledger_entries:
+            running_bal = round(running_bal + entry["qty_change"], 2)
+            entry["running_bal"] = running_bal
+            
+        # Prepend opening balance / manual adjustment if non-zero
+        if starting_stock != 0:
+            earliest_date = min((e["date"] for e in ledger_entries), default=None)
+            baseline_entry = {
+                "date": earliest_date,
+                "type": "Opening / Adjustment",
+                "party": "Manual stock setting",
+                "qty_change": starting_stock,
+                "rate": p.valuation_rate or 0.0,
+                "total_val": round(starting_stock * (p.valuation_rate or 0.0), 2),
+                "ref_url": None,
+                "ref_text": "System Baseline",
+                "running_bal": starting_stock
+            }
+            ledger_entries.insert(0, baseline_entry)
+            
+        # Reverse the entries for display so the newest transactions are at the top
+        ledger_entries.reverse()
+        
+        estimated_valuation = round(current_stock * (p.valuation_rate or 0.0), 2)
+        
+        return render_template(
+            "product_ledger.html",
+            product=p,
+            ledger_entries=ledger_entries,
+            total_added=round(total_added, 2),
+            total_reduced=round(total_reduced, 2),
+            estimated_valuation=estimated_valuation
+        )
+
     @app.route("/reports/stock")
     def stock_report():
         products = Product.query.all()

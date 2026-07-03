@@ -41,6 +41,9 @@
                                             {% endif %}
                                     </td>
                                     <td class="text-end pe-4">
+                                        <a href="{{ url_for('product_stock_ledger', id=p.id) }}" class="btn btn-sm btn-outline-info px-2 py-1 me-1" title="Stock Ledger">
+                                            <i class="bi bi-journal-text"></i> Ledger
+                                        </a>
                                         <button class="btn btn-sm btn-outline-secondary px-2 py-1" data-bs-toggle="modal" data-bs-target="#editProductModal{{ p.id }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>

@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+{% block title %}Stock Ledger: {{ product.name }}{% endblock %}
+
+{% block content %}
+<style>
+/* ── Mobile header ── */
+.ledger-header { flex-wrap: wrap; gap: 0.5rem; }
+.ledger-header h3 { font-size: 1.1rem; margin-bottom: 0; }
+.ledger-header .btn { font-size: 0.8rem; padding: 5px 10px; }
+
+/* ── Summary cards ── */
+.summary-row { 
+  display: grid; 
+  grid-template-columns: repeat(4, 1fr); 
+  gap: 0.75rem; 
+  margin-bottom: 1rem; 
+}
+@media (max-width: 991px) {
+  .summary-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 575px) {
+  .summary-row { grid-template-columns: repeat(2, 1fr); gap: 0.4rem; }
+  .summary-card .card-body { padding: 0.6rem 0.75rem; }
+  .summary-card h4 { font-size: 1rem; }
+  .summary-card .label { font-size: 0.65rem; }
+}
+
+/* ── Table (desktop) ── */
+.ledger-table-wrap { display: block; }
+/* ── Mobile rows ── */
+.ledger-mobile { display: none; }
+
+@media (max-width: 767px) {
+  .ledger-table-wrap { display: none; }
+  .ledger-mobile { display: block; }
+}
+
+/* Mobile transaction card */
+.txn-card {
+  border-left: 4px solid #dee2e6;
+  border-radius: 0 8px 8px 0;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.5rem;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.txn-card.purchase { border-left-color: #198754; }
+.txn-card.sale { border-left-color: #dc3545; }
+.txn-card.adjustment { border-left-color: #0dcaf0; }
+.txn-card .txn-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+.txn-card .txn-date { font-size: 0.75rem; color: #6c757d; white-space: nowrap; }
+.txn-card .txn-desc { font-size: 0.85rem; font-weight: 500; flex: 1; }
+.txn-card .txn-amounts { display: flex; gap: 0.5rem; justify-content: space-between; margin-top: 0.35rem; font-size: 0.8rem; }
+.txn-card .txn-change-add { color: #198754; font-weight: 600; }
+.txn-card .txn-change-sub { color: #dc3545; font-weight: 600; }
+.txn-card .txn-balance { font-weight: 700; color: #212529; }
+.txn-card .txn-actions { margin-top: 0.35rem; font-size: 0.78rem; }
+
+@media print {
+  .btn, .d-print-none { display: none !important; }
+  .card { border: none !important; box-shadow: none !important; }
+  .table-responsive { overflow: visible !important; }
+  .ledger-mobile { display: none !important; }
+  .ledger-table-wrap { display: block !important; }
+}
+</style>
+
+<!-- Header -->
+<div class="d-flex ledger-header justify-content-between align-items-center mb-4">
+    <h3><i class="bi bi-journal-text me-2 text-primary"></i>Stock Ledger: <span class="text-primary">{{ product.name }}</span></h3>
+    <div class="d-flex flex-wrap gap-2 d-print-none">
+        <button class="btn btn-outline-primary" onclick="window.print()">
+            <i class="bi bi-printer"></i> <span class="d-none d-sm-inline">Print</span>
+        </button>
+        <a href="{{ url_for('products_list') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Back to Products</span>
+        </a>
+    </div>
+</div>
+
+<!-- Summary metrics -->
+<div class="summary-row">
+    <!-- Current Stock Card -->
+    <div class="card summary-card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+            <span class="label text-muted d-block small mb-1">Current Stock</span>
+            <div class="d-flex align-items-center justify-content-between">
+                <h4 class="mb-0 fw-bold text-dark">{{ "%.1f"|format(product.current_stock_kg) }} kg</h4>
+                {% if product.current_stock_kg <= product.min_stock_kg %}
+                <span class="badge bg-danger rounded-pill px-2 py-1 small">Low</span>
+                {% else %}
+                <span class="badge bg-success rounded-pill px-2 py-1 small">OK</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Total Added Card -->
+    <div class="card summary-card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+            <span class="label text-muted d-block small mb-1">Total Stock Added (Purchased)</span>
+            <h4 class="mb-0 fw-bold text-success">+{{ "%.1f"|format(total_added) }} kg</h4>
+        </div>
+    </div>
+
+    <!-- Total Reduced Card -->
+    <div class="card summary-card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+            <span class="label text-muted d-block small mb-1">Total Stock Reduced (Sold)</span>
+            <h4 class="mb-0 fw-bold text-danger">-{{ "%.1f"|format(total_reduced) }} kg</h4>
+        </div>
+    </div>
+
+    <!-- Estimated Value Card -->
+    <div class="card summary-card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+            <span class="label text-muted d-block small mb-1">Stock Valuation (Estimated)</span>
+            <h4 class="mb-0 fw-bold text-primary">₹{{ "%.2f"|format(estimated_valuation) }}</h4>
+            <span class="text-muted" style="font-size: 0.7rem;">@ ₹{{ "%.2f"|format(product.valuation_rate or 0) }}/kg</span>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Transactions -->
+<div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+    <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-clock-history me-2 text-secondary"></i>Transaction History</h5>
+    </div>
+    <div class="card-body p-0">
+        <!-- Desktop view -->
+        <div class="table-responsive ledger-table-wrap">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4">Date</th>
+                        <th>Type</th>
+                        <th>Party</th>
+                        <th class="text-end">Qty Change</th>
+                        <th class="text-end">Rate</th>
+                        <th class="text-end">Total Value</th>
+                        <th class="text-end">Running Balance</th>
+                        <th class="text-end pe-4 d-print-none">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in ledger_entries %}
+                    <tr class="{% if entry.type == 'Purchase' %}table-success-subtle{% elif entry.type == 'Sale' %}table-danger-subtle{% endif %}">
+                        <td class="ps-4">
+                            {% if entry.date %}
+                            {{ entry.date.strftime('%d-%b-%Y') }}
+                            {% else %}
+                            <span class="text-muted font-monospace">--</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if entry.type == 'Purchase' %}
+                            <span class="badge bg-success"><i class="bi bi-arrow-down-left-circle me-1"></i> Purchase</span>
+                            {% elif entry.type == 'Sale' %}
+                            <span class="badge bg-danger"><i class="bi bi-arrow-up-right-circle me-1"></i> Sale</span>
+                            {% else %}
+                            <span class="badge bg-info text-dark"><i class="bi bi-info-circle me-1"></i> Opening / Adj</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if entry.party %}
+                            {{ entry.party }}
+                            {% else %}
+                            <span class="text-muted italic">System baseline calibration</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold">
+                            {% if entry.qty_change > 0 %}
+                            <span class="text-success">+{{ "%.1f"|format(entry.qty_change) }} kg</span>
+                            {% elif entry.qty_change < 0 %}
+                            <span class="text-danger">{{ "%.1f"|format(entry.qty_change) }} kg</span>
+                            {% else %}
+                            <span class="text-muted">0.0 kg</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if entry.rate %}
+                            ₹{{ "%.2f"|format(entry.rate) }}
+                            {% else %}
+                            --
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-muted">
+                            {% if entry.total_val %}
+                            ₹{{ "%.2f"|format(entry.total_val) }}
+                            {% else %}
+                            --
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold text-dark pe-3">
+                            {{ "%.1f"|format(entry.running_bal) }} kg
+                        </td>
+                        <td class="text-end pe-4 d-print-none">
+                            {% if entry.ref_url %}
+                            <a href="{{ entry.ref_url }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil-square me-1"></i> Edit Txn
+                            </a>
+                            {% else %}
+                            <span class="text-muted small">N/A</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-info-circle fs-3 d-block mb-2"></i>
+                            No stock history found for this product.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile view -->
+        <div class="ledger-mobile p-3 bg-light">
+            {% for entry in ledger_entries %}
+            <div class="txn-card {% if entry.type == 'Purchase' %}purchase{% elif entry.type == 'Sale' %}sale{% else %}adjustment{% endif %}">
+                <div class="txn-top">
+                    <div class="txn-desc">
+                        {% if entry.type == 'Purchase' %}
+                        Purchase: <strong>{{ entry.party }}</strong>
+                        {% elif entry.type == 'Sale' %}
+                        Sale: <strong>{{ entry.party }}</strong>
+                        {% else %}
+                        System baseline calibration
+                        {% endif %}
+                    </div>
+                    <div class="txn-date">
+                        {% if entry.date %}
+                        {{ entry.date.strftime('%d-%b-%Y') }}
+                        {% else %}
+                        --
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="txn-amounts">
+                    <div>
+                        <small class="text-muted d-block">Qty Change</small>
+                        {% if entry.qty_change > 0 %}
+                        <span class="txn-change-add">+{{ "%.1f"|format(entry.qty_change) }} kg</span>
+                        {% else %}
+                        <span class="txn-change-sub">{{ "%.1f"|format(entry.qty_change) }} kg</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Rate</small>
+                        <span>{% if entry.rate %}₹{{ "%.2f"|format(entry.rate) }}{% else %}--{% endif %}</span>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Run Bal</small>
+                        <span class="txn-balance">{{ "%.1f"|format(entry.running_bal) }} kg</span>
+                    </div>
+                </div>
+                {% if entry.ref_url %}
+                <div class="txn-actions text-end d-print-none border-top pt-2 mt-2">
+                    <a href="{{ entry.ref_url }}" class="text-secondary text-decoration-none">
+                        <i class="bi bi-pencil-square me-1"></i> Edit Transaction
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">No stock history found.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
