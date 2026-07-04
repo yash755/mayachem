@@ -73,6 +73,23 @@
     </div>
 </div>
 
+<!-- Month Filter Form -->
+<div class="card border-0 shadow-sm rounded-3 mb-4 d-print-none">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-md-4 col-lg-3">
+                <input type="month" name="month" class="form-control form-control-sm" value="{{ month_filter or '' }}">
+            </div>
+            <div class="col-md-auto d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary px-3">Filter</button>
+                {% if month_filter %}
+                <a href="{{ url_for('employee_ledger', id=employee.id) }}" class="btn btn-sm btn-outline-danger px-3">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Summary metrics -->
 <div class="summary-row">
     <!-- Monthly Salary Card -->
@@ -86,7 +103,7 @@
     <!-- Paid This Month Card -->
     <div class="card summary-card border-0 shadow-sm rounded-3">
         <div class="card-body">
-            <span class="label text-muted d-block small mb-1">Paid This Month ({{ current_ym }})</span>
+            <span class="label text-muted d-block small mb-1">{% if month_filter %}Paid in {{ month_filter }}{% else %}Paid This Month ({{ current_ym }}){% endif %}</span>
             <h4 class="mb-0 fw-bold text-success">₹{{ "%.2f"|format(paid_this_month) }}</h4>
         </div>
     </div>

@@ -9,7 +9,7 @@
 </div>
 
 <form class="row g-2 mb-4 align-items-center" method="get" action="{{ url_for('sales_list') }}">
-  <div class="col-12 col-md-6">
+  <div class="col-12 col-md-5">
     <select class="form-select select2-multi" name="q" id="q" multiple data-placeholder="Select Clients...">
       {% for client in clients %}
       <option value="{{ client.name }}" {% if client.name in q_list %}selected{% endif %}>
@@ -18,11 +18,14 @@
       {% endfor %}
     </select>
   </div>
+  <div class="col-12 col-md-3">
+    <input type="month" name="month" class="form-control" value="{{ month_filter or '' }}">
+  </div>
   <div class="col-12 col-md-auto d-flex gap-2">
     <button class="btn btn-primary flex-grow-1 flex-md-grow-0" type="submit">
-      <i class="bi bi-search"></i> Search
+      <i class="bi bi-search"></i> Filter
     </button>
-    {% if q_list %}
+    {% if q_list or month_filter %}
     <a href="{{ url_for('sales_list') }}" class="btn btn-outline-danger">Clear</a>
     {% endif %}
     <a class="btn btn-outline-success flex-grow-1 flex-md-grow-0" href="{{ url_for('export_csv') }}">

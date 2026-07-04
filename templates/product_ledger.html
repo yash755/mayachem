@@ -78,15 +78,32 @@
     </div>
 </div>
 
+<!-- Month Filter Form -->
+<div class="card border-0 shadow-sm rounded-3 mb-4 d-print-none">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-md-4 col-lg-3">
+                <input type="month" name="month" class="form-control form-control-sm" value="{{ month_filter or '' }}">
+            </div>
+            <div class="col-md-auto d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary px-3">Filter</button>
+                {% if month_filter %}
+                <a href="{{ url_for('product_stock_ledger', id=product.id) }}" class="btn btn-sm btn-outline-danger px-3">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Summary metrics -->
 <div class="summary-row">
     <!-- Current Stock Card -->
     <div class="card summary-card border-0 shadow-sm rounded-3">
         <div class="card-body">
-            <span class="label text-muted d-block small mb-1">Current Stock</span>
+            <span class="label text-muted d-block small mb-1">{% if month_filter %}Stock at End of Month{% else %}Current Stock{% endif %}</span>
             <div class="d-flex align-items-center justify-content-between">
-                <h4 class="mb-0 fw-bold text-dark">{{ "%.1f"|format(product.current_stock_kg) }} kg</h4>
-                {% if product.current_stock_kg <= product.min_stock_kg %}
+                <h4 class="mb-0 fw-bold text-dark">{{ "%.1f"|format(display_stock) }} kg</h4>
+                {% if display_stock <= product.min_stock_kg %}
                 <span class="badge bg-danger rounded-pill px-2 py-1 small">Low</span>
                 {% else %}
                 <span class="badge bg-success rounded-pill px-2 py-1 small">OK</span>
@@ -98,7 +115,7 @@
     <!-- Total Added Card -->
     <div class="card summary-card border-0 shadow-sm rounded-3">
         <div class="card-body">
-            <span class="label text-muted d-block small mb-1">Total Stock Added (Purchased)</span>
+            <span class="label text-muted d-block small mb-1">Total Stock Added</span>
             <h4 class="mb-0 fw-bold text-success">+{{ "%.1f"|format(total_added) }} kg</h4>
         </div>
     </div>
@@ -106,7 +123,7 @@
     <!-- Total Reduced Card -->
     <div class="card summary-card border-0 shadow-sm rounded-3">
         <div class="card-body">
-            <span class="label text-muted d-block small mb-1">Total Stock Reduced (Sold)</span>
+            <span class="label text-muted d-block small mb-1">Total Stock Reduced</span>
             <h4 class="mb-0 fw-bold text-danger">-{{ "%.1f"|format(total_reduced) }} kg</h4>
         </div>
     </div>
@@ -125,7 +142,7 @@
 <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
     <div class="card-header bg-white border-0 py-3">
         <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Stock Valuation Breakdown (FIFO)</h5>
-        <p class="text-muted small mb-0">Breakdown of the current <strong>{{ "%.1f"|format(product.current_stock_kg) }} kg</strong> stock by purchase batches (oldest sales consumed first).</p>
+        <p class="text-muted small mb-0">Breakdown of the <strong>{{ "%.1f"|format(display_stock) }} kg</strong> stock by purchase batches (oldest sales consumed first).</p>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">

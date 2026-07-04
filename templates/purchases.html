@@ -7,7 +7,7 @@
 </div>
 
 <form class="row g-2 mb-3 align-items-center" method="get" action="{{ url_for('purchases') }}">
-  <div class="col-12 col-md-6">
+  <div class="col-12 col-md-5">
     <select class="form-select select2-multi" name="q" id="q" multiple data-placeholder="Select Parties...">
       {% for client in clients %}
       <option value="{{ client.name }}" {% if client.name in q_list %}selected{% endif %}>
@@ -16,9 +16,12 @@
       {% endfor %}
     </select>
   </div>
+  <div class="col-12 col-md-3">
+    <input type="month" name="month" class="form-control" value="{{ month_filter or '' }}">
+  </div>
   <div class="col-auto">
-    <button class="btn btn-outline-secondary me-2" type="submit">Search</button>
-    {% if q_list %}
+    <button class="btn btn-outline-secondary me-2" type="submit">Filter</button>
+    {% if q_list or month_filter %}
     <a href="{{ url_for('purchases') }}" class="btn btn-outline-danger me-2">Clear</a>
     {% endif %}
   </div>

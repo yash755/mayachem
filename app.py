@@ -1426,6 +1426,65 @@ def register_routes(app: Flask) -> None:
 
         transactions.sort(key=sort_key)
 
+        # Apply Month Filter & Rolling Opening Balance
+        month_filter = request.args.get("month")
+        if month_filter:
+            try:
+                filter_yr, filter_mo = map(int, month_filter.split("-"))
+                filter_start = date(filter_yr, filter_mo, 1)
+            except Exception:
+                filter_start = None
+        else:
+            filter_start = None
+
+        if filter_start:
+            pre_txs = []
+            selected_txs = []
+            for t in transactions:
+                if t["date"] is None or t["date"] < filter_start:
+                    pre_txs.append(t)
+                elif t["date"].year == filter_yr and t["date"].month == filter_mo:
+                    selected_txs.append(t)
+            
+            # Recalculate opening balance
+            pre_debit = sum(t["debit"] for t in pre_txs)
+            pre_credit = sum(t["credit"] for t in pre_txs)
+            
+            if party_type == "client":
+                net_opening = pre_debit - pre_credit
+                new_opening_tx = {
+                    "date": None,
+                    "desc": f"Opening Balance / Carry Forward (as of {filter_start.strftime('%d-%b-%Y')})",
+                    "ref": "",
+                    "debit": max(0.0, net_opening),
+                    "credit": max(0.0, -net_opening),
+                    "party_name": display_name
+                }
+            else: # vendor
+                net_opening = pre_credit - pre_debit
+                new_opening_tx = {
+                    "date": None,
+                    "desc": f"Opening Balance / Carry Forward (as of {filter_start.strftime('%d-%b-%Y')})",
+                    "ref": "",
+                    "debit": max(0.0, -net_opening),
+                    "credit": max(0.0, net_opening),
+                    "party_name": display_name
+                }
+            
+            transactions = [new_opening_tx] + selected_txs
+
+        # Recalculate Billed and Paid for the selected transactions (excluding opening balance)
+        total_billed = 0
+        total_paid = 0
+        for t in transactions:
+            if t["date"] is not None:
+                if party_type == "client":
+                    total_billed += t["debit"]
+                    total_paid += t["credit"]
+                else:
+                    total_billed += t["credit"]
+                    total_paid += t["debit"]
+
         # Calculate Running Balance
         running = 0
         for t in transactions:
@@ -1452,6 +1511,7 @@ def register_routes(app: Flask) -> None:
             is_multi=is_multi,
             client_obj=client_obj if party_type == "client" else None,
             other_side_count=other_side_count,
+            month_filter=month_filter
         )
 
     @app.route("/ledger/combined/<path:name>")
@@ -1587,12 +1647,59 @@ def register_routes(app: Flask) -> None:
 
         transactions.sort(key=sort_key)
 
-        # Net balance: we are owed (sales) minus we owe (purchases)
-        # debit = we are owed / we paid out; credit = we received / we were billed
-        # For combined: treat as: +debit (sale) -credit(purchase) side by side
-        # Running: sale entries debit us (client owes), receipt credits reduce it
-        #          purchase credit them (we owe), payment debit reduces it
-        # Net = receivable_balance - payable_balance
+        # Apply Month Filter & Rolling Opening Balance
+        month_filter = request.args.get("month")
+        if month_filter:
+            try:
+                filter_yr, filter_mo = map(int, month_filter.split("-"))
+                filter_start = date(filter_yr, filter_mo, 1)
+            except Exception:
+                filter_start = None
+        else:
+            filter_start = None
+
+        if filter_start:
+            pre_txs = []
+            selected_txs = []
+            for t in transactions:
+                if t["date"] is None or t["date"] < filter_start:
+                    pre_txs.append(t)
+                elif t["date"].year == filter_yr and t["date"].month == filter_mo:
+                    selected_txs.append(t)
+            
+            # Recalculate opening balance (Combined receivable net position)
+            pre_debit = sum(t["debit"] for t in pre_txs)
+            pre_credit = sum(t["credit"] for t in pre_txs)
+            net_opening = pre_debit - pre_credit
+            
+            new_opening_tx = {
+                "date": None,
+                "desc": f"Opening Balance / Carry Forward (as of {filter_start.strftime('%d-%b-%Y')})",
+                "ref": "",
+                "debit": max(0.0, net_opening),
+                "credit": max(0.0, -net_opening),
+                "side": "client",
+                "id_for_sort": -999999
+            }
+            transactions = [new_opening_tx] + selected_txs
+
+        # Recalculate totals for selected transactions (excluding opening balance)
+        sales_total = 0
+        sales_received = 0
+        purchase_total = 0
+        purchase_paid = 0
+        for t in transactions:
+            if t["date"] is not None:
+                side = t.get("side", "")
+                if side == "sale":
+                    sales_total += t["debit"]
+                elif side == "receipt":
+                    sales_received += t["credit"]
+                elif side == "purchase":
+                    purchase_total += t["credit"]
+                elif side == "payment":
+                    purchase_paid += t["debit"]
+
         running = 0
         for t in transactions:
             side = t.get("side", "")
@@ -1620,6 +1727,7 @@ def register_routes(app: Flask) -> None:
             client_obj=client_obj,
             has_sales=bool(sales),
             has_purchases=bool(purchases),
+            month_filter=month_filter
         )
 
     @app.route("/reports/sales-outstanding")
@@ -1859,6 +1967,7 @@ def register_routes(app: Flask) -> None:
     def sales_list():
         q_raw = request.args.getlist("q")
         q_list = [v for v in q_raw if v.strip()]
+        month_filter = request.args.get("month")
 
         query = Sale.query
 
@@ -1867,6 +1976,10 @@ def register_routes(app: Flask) -> None:
             query = query.filter(
                 Sale.client_name.in_(q_list)
             )
+
+        # Apply month filter
+        if month_filter:
+            query = query.filter(db.func.strftime('%Y-%m', Sale.date) == month_filter)
 
         sales = query.order_by(
             Sale.date.desc(),
@@ -1879,7 +1992,8 @@ def register_routes(app: Flask) -> None:
             "sales_list.html",
             rows=sales,
             q_list=q_list,
-            clients=clients
+            clients=clients,
+            month_filter=month_filter
         )
 
     @app.route("/sales/<int:sale_id>/delete", methods=["POST"])
@@ -1904,6 +2018,7 @@ def register_routes(app: Flask) -> None:
     def purchases():
         q_raw = request.args.getlist("q")
         q_list = [v for v in q_raw if v.strip()]
+        month_filter = request.args.get("month")
 
         query = Purchase.query
         if q_list:
@@ -1911,9 +2026,13 @@ def register_routes(app: Flask) -> None:
             query = query.filter(
                 Purchase.vendor_name.in_(q_list)
             )
+            
+        if month_filter:
+            query = query.filter(db.func.strftime('%Y-%m', Purchase.date) == month_filter)
+            
         all_purchases = query.order_by(Purchase.date.desc()).all()
         clients = Client.query.order_by(Client.name).all()
-        return render_template("purchases.html", purchases=all_purchases, q_list=q_list, clients=clients)
+        return render_template("purchases.html", purchases=all_purchases, q_list=q_list, clients=clients, month_filter=month_filter)
 
 
 
@@ -2459,19 +2578,32 @@ def register_routes(app: Flask) -> None:
     @app.route("/employees/<int:id>/ledger")
     def employee_ledger(id):
         emp = Employee.query.get_or_404(id)
-        payments = Expense.query.filter_by(employee_id=id).order_by(Expense.date.desc(), Expense.id.desc()).all()
+        month_filter = request.args.get("month")
         
+        query = Expense.query.filter_by(employee_id=id)
+        if month_filter:
+            query = query.filter(db.func.strftime('%Y-%m', Expense.date) == month_filter)
+            
+        payments = query.order_by(Expense.date.desc(), Expense.id.desc()).all()
+        
+        # Calculate summary statistics
         total_paid = sum(p.amount for p in payments)
-        current_ym = datetime.now().strftime("%Y-%m")
-        paid_this_month = sum(p.amount for p in payments if p.date.strftime("%Y-%m") == current_ym)
+        current_ym = month_filter if month_filter else datetime.now().strftime("%Y-%m")
         
+        if month_filter:
+            paid_this_month = total_paid
+        else:
+            all_payments = Expense.query.filter_by(employee_id=id).all()
+            paid_this_month = sum(p.amount for p in all_payments if p.date.strftime("%Y-%m") == current_ym)
+            
         return render_template(
             "employee_ledger.html",
             employee=emp,
             payments=payments,
             total_paid=total_paid,
             paid_this_month=paid_this_month,
-            current_ym=current_ym
+            current_ym=current_ym,
+            month_filter=month_filter
         )
 
     @app.route("/expense-categories", methods=["GET", "POST"])
@@ -2551,15 +2683,41 @@ def register_routes(app: Flask) -> None:
         # 2. Fetch Sale transactions
         sales_query = db.session.query(SaleItem, Sale).join(Sale).filter(SaleItem.product_id == id).all()
         
-        # 3. Build a consolidated ledger list of transactions
-        ledger_entries = []
+        # Apply Month Filter
+        month_filter = request.args.get("month")
+        if month_filter:
+            try:
+                filter_yr, filter_mo = map(int, month_filter.split("-"))
+                filter_start = date(filter_yr, filter_mo, 1)
+            except Exception:
+                filter_start = None
+        else:
+            filter_start = None
+
+        # Calculate lifetime totals
+        lifetime_added = sum(item.quantity_kg or 0.0 for item, purchase in purchases_query)
+        lifetime_reduced = sum(item.quantity_kg or 0.0 for item, sale in sales_query)
         
-        total_added = 0.0
-        total_reduced = 0.0
+        current_stock = p.current_stock_kg or 0.0
+        lifetime_starting_stock = round(current_stock - lifetime_added + lifetime_reduced, 2)
+        
+        pre_added = 0.0
+        pre_reduced = 0.0
+        month_added = 0.0
+        month_reduced = 0.0
+        
+        ledger_entries = []
         
         for item, purchase in purchases_query:
             qty = item.quantity_kg or 0.0
-            total_added += qty
+            if filter_start:
+                if purchase.date < filter_start:
+                    pre_added += qty
+                    continue
+                elif purchase.date.year != filter_yr or purchase.date.month != filter_mo:
+                    continue
+            
+            month_added += qty
             ledger_entries.append({
                 "date": purchase.date,
                 "type": "Purchase",
@@ -2573,7 +2731,14 @@ def register_routes(app: Flask) -> None:
             
         for item, sale in sales_query:
             qty = item.quantity_kg or 0.0
-            total_reduced += qty
+            if filter_start:
+                if sale.date < filter_start:
+                    pre_reduced += qty
+                    continue
+                elif sale.date.year != filter_yr or sale.date.month != filter_mo:
+                    continue
+            
+            month_reduced += qty
             ledger_entries.append({
                 "date": sale.date,
                 "type": "Sale",
@@ -2585,27 +2750,27 @@ def register_routes(app: Flask) -> None:
                 "ref_text": f"Sale #{sale.id}"
             })
             
-        # Sort chronologically: oldest first for running balance calculation
+        # Sort chronologically
         ledger_entries.sort(key=lambda x: (x["date"], 0 if x["type"] == "Purchase" else 1))
         
-        # 4. Compute running balance
-        current_stock = p.current_stock_kg or 0.0
-        starting_stock = round(current_stock - total_added + total_reduced, 2)
-        
+        # Calculate starting stock for the filtered period
+        if filter_start:
+            starting_stock = round(lifetime_starting_stock + pre_added - pre_reduced, 2)
+        else:
+            starting_stock = lifetime_starting_stock
+            
         running_bal = starting_stock
-        
-        # For each transaction, compute running balance
         for entry in ledger_entries:
             running_bal = round(running_bal + entry["qty_change"], 2)
             entry["running_bal"] = running_bal
             
-        # Prepend opening balance / manual adjustment if non-zero
-        if starting_stock != 0:
-            earliest_date = min((e["date"] for e in ledger_entries), default=None)
+        # Prepend starting balance baseline entry
+        if filter_start or starting_stock != 0:
+            earliest_date = filter_start if filter_start else min((e["date"] for e in ledger_entries), default=None)
             baseline_entry = {
                 "date": earliest_date,
                 "type": "Opening / Adjustment",
-                "party": "Manual stock setting",
+                "party": "Carry Forward / Baseline" if filter_start else "Manual stock setting",
                 "qty_change": starting_stock,
                 "rate": p.valuation_rate or 0.0,
                 "total_val": round(starting_stock * (p.valuation_rate or 0.0), 2),
@@ -2615,12 +2780,12 @@ def register_routes(app: Flask) -> None:
             }
             ledger_entries.insert(0, baseline_entry)
             
-        # Reverse the entries for display so the newest transactions are at the top
         ledger_entries.reverse()
         
-        estimated_valuation = round(current_stock * (p.valuation_rate or 0.0), 2)
+        display_stock = running_bal
+        estimated_valuation = round(display_stock * (p.valuation_rate or 0.0), 2)
         
-        # 5. Compute FIFO remaining stock batch breakdown
+        # FIFO stock batch breakdown as of end of this period
         fifo_purchases = sorted(
             [
                 {
@@ -2631,11 +2796,12 @@ def register_routes(app: Flask) -> None:
                     "purchase_id": purchase.id
                 }
                 for item, purchase in purchases_query
+                if not filter_start or purchase.date < date(filter_yr + (1 if filter_mo == 12 else 0), 1 if filter_mo == 12 else filter_mo + 1, 1)
             ],
             key=lambda x: (x["date"], x["purchase_id"])
         )
         
-        sales_to_consume = total_reduced
+        sales_to_consume = pre_reduced + month_reduced
         breakdown = []
         
         for p_batch in fifo_purchases:
@@ -2656,11 +2822,11 @@ def register_routes(app: Flask) -> None:
                         "ref_text": f"Purchase #{p_batch['purchase_id']}"
                     })
                     
-        # Reconcile with actual current stock
+        # Reconcile with display stock
         total_breakdown_qty = sum(b["remaining_qty"] for b in breakdown)
         
-        if current_stock > total_breakdown_qty:
-            excess_qty = round(current_stock - total_breakdown_qty, 2)
+        if display_stock > total_breakdown_qty:
+            excess_qty = round(display_stock - total_breakdown_qty, 2)
             breakdown.insert(0, {
                 "date": None,
                 "vendor": "Opening Stock / Adjustment",
@@ -2670,8 +2836,8 @@ def register_routes(app: Flask) -> None:
                 "ref_url": None,
                 "ref_text": "System Baseline"
             })
-        elif current_stock < total_breakdown_qty:
-            surplus = round(total_breakdown_qty - current_stock, 2)
+        elif display_stock < total_breakdown_qty:
+            surplus = round(total_breakdown_qty - display_stock, 2)
             reconciled_breakdown = []
             for b in breakdown:
                 if surplus > 0:
@@ -2692,10 +2858,12 @@ def register_routes(app: Flask) -> None:
             "product_ledger.html",
             product=p,
             ledger_entries=ledger_entries,
-            total_added=round(total_added, 2),
-            total_reduced=round(total_reduced, 2),
+            total_added=round(month_added, 2),
+            total_reduced=round(month_reduced, 2),
             estimated_valuation=estimated_valuation,
-            stock_breakdown=breakdown
+            stock_breakdown=breakdown,
+            display_stock=display_stock,
+            month_filter=month_filter
         )
 
     @app.route("/reports/stock")
