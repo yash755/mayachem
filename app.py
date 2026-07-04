@@ -2456,6 +2456,24 @@ def register_routes(app: Flask) -> None:
             flash("Employee updated", "success")
         return redirect(url_for("employees_list"))
 
+    @app.route("/employees/<int:id>/ledger")
+    def employee_ledger(id):
+        emp = Employee.query.get_or_404(id)
+        payments = Expense.query.filter_by(employee_id=id).order_by(Expense.date.desc(), Expense.id.desc()).all()
+        
+        total_paid = sum(p.amount for p in payments)
+        current_ym = datetime.now().strftime("%Y-%m")
+        paid_this_month = sum(p.amount for p in payments if p.date.strftime("%Y-%m") == current_ym)
+        
+        return render_template(
+            "employee_ledger.html",
+            employee=emp,
+            payments=payments,
+            total_paid=total_paid,
+            paid_this_month=paid_this_month,
+            current_ym=current_ym
+        )
+
     @app.route("/expense-categories", methods=["GET", "POST"])
     def expense_categories():
         if request.method == "POST":
