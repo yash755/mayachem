@@ -2862,27 +2862,28 @@ def register_routes(app: Flask) -> None:
                     reconciled_breakdown.append(b)
             breakdown = reconciled_breakdown
             
-        # Consolidate breakdown entries of the same price/rate
+        # Consolidate breakdown entries of the same price/rate AND same vendor
         consolidated = {}
         for b in breakdown:
             rate = b["rate"]
-            if rate not in consolidated:
-                consolidated[rate] = {
+            vendor = b["vendor"] or ""
+            key = (rate, vendor)
+            if key not in consolidated:
+                consolidated[key] = {
                     "date": b["date"],
-                    "vendor": b["vendor"],
+                    "vendor": vendor,
                     "remaining_qty": 0.0,
                     "rate": rate,
                     "total_val": 0.0,
                     "ref_url": b["ref_url"],
                     "ref_text": b["ref_text"]
                 }
-            consolidated[rate]["remaining_qty"] += b["remaining_qty"]
-            consolidated[rate]["total_val"] += b["total_val"]
-            if b["date"] and (consolidated[rate]["date"] is None or b["date"] > consolidated[rate]["date"]):
-                consolidated[rate]["date"] = b["date"]
-                consolidated[rate]["vendor"] = b["vendor"]
-                consolidated[rate]["ref_url"] = b["ref_url"]
-                consolidated[rate]["ref_text"] = b["ref_text"]
+            consolidated[key]["remaining_qty"] += b["remaining_qty"]
+            consolidated[key]["total_val"] += b["total_val"]
+            if b["date"] and (consolidated[key]["date"] is None or b["date"] > consolidated[key]["date"]):
+                consolidated[key]["date"] = b["date"]
+                consolidated[key]["ref_url"] = b["ref_url"]
+                consolidated[key]["ref_text"] = b["ref_text"]
                 
         breakdown = list(consolidated.values())
         for b in breakdown:
