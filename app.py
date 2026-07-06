@@ -2862,6 +2862,33 @@ def register_routes(app: Flask) -> None:
                     reconciled_breakdown.append(b)
             breakdown = reconciled_breakdown
             
+        # Consolidate breakdown entries of the same price/rate
+        consolidated = {}
+        for b in breakdown:
+            rate = b["rate"]
+            if rate not in consolidated:
+                consolidated[rate] = {
+                    "date": b["date"],
+                    "vendor": b["vendor"],
+                    "remaining_qty": 0.0,
+                    "rate": rate,
+                    "total_val": 0.0,
+                    "ref_url": b["ref_url"],
+                    "ref_text": b["ref_text"]
+                }
+            consolidated[rate]["remaining_qty"] += b["remaining_qty"]
+            consolidated[rate]["total_val"] += b["total_val"]
+            if b["date"] and (consolidated[rate]["date"] is None or b["date"] > consolidated[rate]["date"]):
+                consolidated[rate]["date"] = b["date"]
+                consolidated[rate]["vendor"] = b["vendor"]
+                consolidated[rate]["ref_url"] = b["ref_url"]
+                consolidated[rate]["ref_text"] = b["ref_text"]
+                
+        breakdown = list(consolidated.values())
+        for b in breakdown:
+            b["remaining_qty"] = round(b["remaining_qty"], 2)
+            b["total_val"] = round(b["total_val"], 2)
+
         # Sort newest remaining batches first for layout display (opening stock goes to bottom)
         breakdown.sort(key=lambda x: x["date"] or date(1900, 1, 1), reverse=True)
 
