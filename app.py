@@ -2,7 +2,7 @@
 import io
 import csv
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from zoneinfo import ZoneInfo
 from typing import Optional
 from sqlalchemy import func
@@ -2786,48 +2786,56 @@ def register_routes(app: Flask) -> None:
         estimated_valuation = round(display_stock * (p.valuation_rate or 0.0), 2)
         
         # FIFO stock batch breakdown as of end of this period
-        fifo_purchases = sorted(
-            [
-                {
+        # Group purchases by rate, preserving their chronological order
+        from collections import defaultdict
+        purchases_by_rate = defaultdict(list)
+        for item, purchase in purchases_query:
+            if not filter_start or purchase.date < date(filter_yr + (1 if filter_mo == 12 else 0), 1 if filter_mo == 12 else filter_mo + 1, 1):
+                purchases_by_rate[item.rate_per_kg or 0.0].append({
                     "date": purchase.date,
                     "vendor": purchase.vendor_name,
                     "qty": item.quantity_kg or 0.0,
                     "rate": item.rate_per_kg or 0.0,
                     "purchase_id": purchase.id
-                }
-                for item, purchase in purchases_query
-                if not filter_start or purchase.date < date(filter_yr + (1 if filter_mo == 12 else 0), 1 if filter_mo == 12 else filter_mo + 1, 1)
-            ],
-            key=lambda x: (x["date"], x["purchase_id"])
-        )
+                })
         
-        sales_to_consume = pre_reduced + month_reduced
+        # Sort each rate's purchase batches chronologically (oldest first)
+        for r_val in purchases_by_rate:
+            purchases_by_rate[r_val].sort(key=lambda x: (x["date"], x["purchase_id"]))
+            
+        # Group sales by CP (cost_rate_per_kg)
+        sales_by_rate = defaultdict(float)
+        for item, sale in sales_query:
+            if not filter_start or sale.date < date(filter_yr + (1 if filter_mo == 12 else 0), 1 if filter_mo == 12 else filter_mo + 1, 1):
+                sales_by_rate[item.cost_rate_per_kg or 0.0] += (item.quantity_kg or 0.0)
+                
         breakdown = []
-        
-        for p_batch in fifo_purchases:
-            p_qty = p_batch["qty"]
-            if sales_to_consume >= p_qty:
-                sales_to_consume -= p_qty
-            else:
-                remaining_qty = p_qty - sales_to_consume
-                sales_to_consume = 0.0
-                if remaining_qty > 0:
-                    breakdown.append({
-                        "date": p_batch["date"],
-                        "vendor": p_batch["vendor"],
-                        "remaining_qty": round(remaining_qty, 2),
-                        "rate": p_batch["rate"],
-                        "total_val": round(remaining_qty * p_batch["rate"], 2),
-                        "ref_url": url_for("edit_purchase", purchase_id=p_batch["purchase_id"]),
-                        "ref_text": f"Purchase #{p_batch['purchase_id']}"
-                    })
+        for rate, batches in purchases_by_rate.items():
+            sales_to_consume = sales_by_rate.get(rate, 0.0)
+            for batch in batches:
+                p_qty = batch["qty"]
+                if sales_to_consume >= p_qty:
+                    sales_to_consume -= p_qty
+                else:
+                    remaining_qty = p_qty - sales_to_consume
+                    sales_to_consume = 0.0
+                    if remaining_qty > 0:
+                        breakdown.append({
+                            "date": batch["date"],
+                            "vendor": batch["vendor"],
+                            "remaining_qty": round(remaining_qty, 2),
+                            "rate": batch["rate"],
+                            "total_val": round(remaining_qty * batch["rate"], 2),
+                            "ref_url": url_for("edit_purchase", purchase_id=batch["purchase_id"]),
+                            "ref_text": f"Purchase #{batch['purchase_id']}"
+                        })
                     
         # Reconcile with display stock
         total_breakdown_qty = sum(b["remaining_qty"] for b in breakdown)
         
         if display_stock > total_breakdown_qty:
             excess_qty = round(display_stock - total_breakdown_qty, 2)
-            breakdown.insert(0, {
+            breakdown.append({
                 "date": None,
                 "vendor": "Opening Stock / Adjustment",
                 "remaining_qty": excess_qty,
@@ -2838,6 +2846,8 @@ def register_routes(app: Flask) -> None:
             })
         elif display_stock < total_breakdown_qty:
             surplus = round(total_breakdown_qty - display_stock, 2)
+            # Trim the oldest batches first: sort ascending by date
+            breakdown.sort(key=lambda x: x["date"] or date(1900, 1, 1))
             reconciled_breakdown = []
             for b in breakdown:
                 if surplus > 0:
@@ -2852,7 +2862,9 @@ def register_routes(app: Flask) -> None:
                     reconciled_breakdown.append(b)
             breakdown = reconciled_breakdown
             
-        breakdown.reverse()
+        # Sort newest remaining batches first for layout display (opening stock goes to bottom)
+        breakdown.sort(key=lambda x: x["date"] or date(1900, 1, 1), reverse=True)
+
         
         return render_template(
             "product_ledger.html",
