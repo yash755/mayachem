@@ -2779,6 +2779,19 @@ def register_routes(app: Flask) -> None:
             
         return redirect(url_for("product_stock_ledger", id=id))
 
+    @app.route("/product/<int:id>/batch/<int:batch_id>/delete", methods=["POST"])
+    def delete_product_batch(id, batch_id):
+        p = Product.query.get_or_404(id)
+        batch = ProductBatch.query.get_or_404(batch_id)
+        if batch.product_id == id:
+            db.session.delete(batch)
+            sync_product_total_stock(id)
+            db.session.commit()
+            flash("Stock batch deleted successfully", "success")
+        else:
+            flash("Invalid batch request", "danger")
+        return redirect(url_for("product_stock_ledger", id=id))
+
     @app.route("/product/<int:id>/ledger")
     def product_stock_ledger(id):
         p = Product.query.get_or_404(id)
@@ -2828,7 +2841,8 @@ def register_routes(app: Flask) -> None:
                 "type": "Purchase",
                 "party": purchase.vendor_name,
                 "qty_change": qty,
-                "rate": item.rate_per_kg or 0.0,
+                "cp": item.rate_per_kg or 0.0,
+                "sp": None,
                 "total_val": round(qty * (item.rate_per_kg or 0.0), 2),
                 "ref_url": url_for("edit_purchase", purchase_id=purchase.id),
                 "ref_text": f"Purchase #{purchase.id}"
@@ -2849,7 +2863,8 @@ def register_routes(app: Flask) -> None:
                 "type": "Sale",
                 "party": sale.client_name,
                 "qty_change": -qty,
-                "rate": item.selling_rate_per_kg or 0.0,
+                "cp": item.cost_rate_per_kg or 0.0,
+                "sp": item.selling_rate_per_kg or 0.0,
                 "total_val": round(qty * (item.selling_rate_per_kg or 0.0), 2),
                 "ref_url": url_for("sales_form", sale_id=sale.id),
                 "ref_text": f"Sale #{sale.id}"
@@ -2877,7 +2892,8 @@ def register_routes(app: Flask) -> None:
                 "type": "Opening / Adjustment",
                 "party": "Carry Forward / Baseline" if filter_start else "Manual stock setting",
                 "qty_change": starting_stock,
-                "rate": p.valuation_rate or 0.0,
+                "cp": p.valuation_rate or 0.0,
+                "sp": None,
                 "total_val": round(starting_stock * (p.valuation_rate or 0.0), 2),
                 "ref_url": None,
                 "ref_text": "System Baseline",

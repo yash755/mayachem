@@ -152,7 +152,8 @@
                         <tr>
                             <th class="ps-4">Price Rate (₹/kg)</th>
                             <th class="text-end" style="width: 200px;">Remaining Quantity (kg)</th>
-                            <th class="text-end pe-4">Estimated Value</th>
+                            <th class="text-end">Estimated Value</th>
+                            <th class="text-end pe-4 d-print-none" style="width: 80px;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -169,13 +170,18 @@
                                     <span class="input-group-text">kg</span>
                                 </div>
                             </td>
-                            <td class="text-end fw-semibold text-primary pe-4">
+                            <td class="text-end fw-semibold text-primary">
                                 ₹{{ "%.2f"|format(batch.total_val) }}
+                            </td>
+                            <td class="text-end pe-4 d-print-none">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="if(confirm('Delete this price batch?')) { this.form.action='{{ url_for('delete_product_batch', id=product.id, batch_id=batch.id) }}'; return true; } else { return false; }">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="3" class="text-center py-4 text-muted">
+                            <td colspan="4" class="text-center py-4 text-muted">
                                 No price batches currently in stock.
                             </td>
                         </tr>
@@ -215,7 +221,8 @@
                         <th>Type</th>
                         <th>Party</th>
                         <th class="text-end">Qty Change</th>
-                        <th class="text-end">Rate</th>
+                        <th class="text-end">CP</th>
+                        <th class="text-end">SP</th>
                         <th class="text-end">Total Value</th>
                         <th class="text-end">Running Balance</th>
                         <th class="text-end pe-4 d-print-none">Action</th>
@@ -256,9 +263,16 @@
                             <span class="text-muted">0.0 kg</span>
                             {% endif %}
                         </td>
-                        <td class="text-end">
-                            {% if entry.rate %}
-                            ₹{{ "%.2f"|format(entry.rate) }}
+                        <td class="text-end text-muted">
+                            {% if entry.cp %}
+                            ₹{{ "%.2f"|format(entry.cp) }}
+                            {% else %}
+                            --
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-muted">
+                            {% if entry.sp %}
+                            ₹{{ "%.2f"|format(entry.sp) }}
                             {% else %}
                             --
                             {% endif %}
@@ -285,7 +299,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="8" class="text-center py-5 text-muted">
+                        <td colspan="9" class="text-center py-5 text-muted">
                             <i class="bi bi-info-circle fs-3 d-block mb-2"></i>
                             No stock history found for this product.
                         </td>
@@ -327,8 +341,12 @@
                         {% endif %}
                     </div>
                     <div>
-                        <small class="text-muted d-block">Rate</small>
-                        <span>{% if entry.rate %}₹{{ "%.2f"|format(entry.rate) }}{% else %}--{% endif %}</span>
+                        <small class="text-muted d-block">CP</small>
+                        <span>{% if entry.cp %}₹{{ "%.2f"|format(entry.cp) }}{% else %}--{% endif %}</span>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">SP</small>
+                        <span>{% if entry.sp %}₹{{ "%.2f"|format(entry.sp) }}{% else %}--{% endif %}</span>
                     </div>
                     <div>
                         <small class="text-muted d-block">Run Bal</small>
