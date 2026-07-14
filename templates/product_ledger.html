@@ -138,72 +138,66 @@
     </div>
 </div>
 
-<!-- FIFO Stock Batch Breakdown -->
+<!-- Stock Batches (Database Override) -->
 <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
     <div class="card-header bg-white border-0 py-3">
-        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Stock Valuation Breakdown (FIFO)</h5>
-        <p class="text-muted small mb-0">Breakdown of the <strong>{{ "%.1f"|format(display_stock) }} kg</strong> stock by purchase batches (oldest sales consumed first).</p>
+        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-layers-half me-2 text-primary"></i>Stock Batches (Database Override)</h5>
+        <p class="text-muted small mb-0">Persistent stock batches stored in the database. You can manually edit quantities or add new price rates below.</p>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead class="bg-light">
-                    <tr>
-                        <th class="ps-4">Purchase Date</th>
-                        <th>Vendor / Batch Source</th>
-                        <th class="text-end">Remaining Qty</th>
-                        <th class="text-end">Rate (₹/kg)</th>
-                        <th class="text-end">Est. Remaining Value</th>
-                        <th class="text-end pe-4 d-print-none">Ref</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for batch in stock_breakdown %}
-                    <tr>
-                        <td class="ps-4">
-                            {% if batch.date %}
-                            {{ batch.date.strftime('%d-%b-%Y') }}
-                            {% else %}
-                            <span class="text-muted font-monospace">--</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if batch.date %}
-                            <span class="fw-medium text-dark">{{ batch.vendor }}</span>
-                            {% else %}
-                            <span class="text-muted italic">{{ batch.vendor }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-end fw-bold text-dark">
-                            {{ "%.1f"|format(batch.remaining_qty) }} kg
-                        </td>
-                        <td class="text-end text-muted">
-                            ₹{{ "%.2f"|format(batch.rate) }}
-                        </td>
-                        <td class="text-end fw-semibold text-primary">
-                            ₹{{ "%.2f"|format(batch.total_val) }}
-                        </td>
-                        <td class="text-end pe-4 d-print-none">
-                            {% if batch.ref_url %}
-                            <a href="{{ batch.ref_url }}" class="btn btn-sm btn-outline-secondary">
-                                <i class="bi bi-pencil-square"></i>
-                            </a>
-                            {% else %}
-                            <span class="text-muted small">--</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-muted">
-                            No batches currently in stock. Stock is empty.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <form action="{{ url_for('product_batch_override', id=product.id) }}" method="POST" class="m-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Price Rate (₹/kg)</th>
+                            <th class="text-end" style="width: 200px;">Remaining Quantity (kg)</th>
+                            <th class="text-end pe-4">Estimated Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for batch in stock_breakdown %}
+                        <tr>
+                            <td class="ps-4 fw-bold text-dark">
+                                ₹{{ "%.2f"|format(batch.rate) }}
+                                <input type="hidden" name="batch_id[]" value="{{ batch.id }}">
+                            </td>
+                            <td class="text-end">
+                                <span class="d-none d-print-inline">{{ "%.1f"|format(batch.remaining_qty) }} kg</span>
+                                <div class="input-group input-group-sm justify-content-end d-print-none">
+                                    <input type="number" step="0.01" class="form-control text-end fw-semibold" style="max-width: 120px;" name="quantity_kg[]" value="{{ batch.remaining_qty }}">
+                                    <span class="input-group-text">kg</span>
+                                </div>
+                            </td>
+                            <td class="text-end fw-semibold text-primary pe-4">
+                                ₹{{ "%.2f"|format(batch.total_val) }}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center py-4 text-muted">
+                                No price batches currently in stock.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
+        
+        <div class="card-footer bg-light border-0 py-3 d-print-none">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 480px;">
+                    <span class="text-muted small fw-bold text-nowrap">Add Price Batch:</span>
+                    <input type="number" step="0.01" class="form-control form-control-sm" name="new_rate" placeholder="Rate (₹/kg)">
+                    <input type="number" step="0.01" class="form-control form-control-sm" name="new_qty" placeholder="Qty (kg)">
+                </div>
+                <button type="submit" class="btn btn-sm btn-success px-4 fw-bold shadow-sm">
+                    <i class="bi bi-check-circle-fill me-1"></i> Save Changes & Overrides
+                </button>
+            </div>
+        </div>
+    </form>
 </div>
 
 <!-- Detailed Transactions -->

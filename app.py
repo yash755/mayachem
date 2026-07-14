@@ -76,6 +76,18 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
                 db.session.add(ExpenseCategory(name=cat_name))
             db.session.commit()
 
+        # Seed ProductBatch for existing products if ProductBatch is empty
+        if ProductBatch.query.count() == 0:
+            for p in Product.query.all():
+                if p.current_stock_kg != 0:
+                    batch = ProductBatch(
+                        product_id=p.id,
+                        rate=p.valuation_rate or 0.0,
+                        quantity_kg=p.current_stock_kg
+                    )
+                    db.session.add(batch)
+            db.session.commit()
+
     register_routes(app)
     register_cli(app)
 
@@ -386,6 +398,38 @@ class Product(db.Model):
 
     def __repr__(self) -> str:
         return f"<Product {self.name} {self.current_stock_kg}kg>"
+
+class ProductBatch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"), nullable=False)
+    rate = db.Column(db.Float, nullable=False, default=0.0)
+    quantity_kg = db.Column(db.Float, nullable=False, default=0.0)
+
+    product = db.relationship("Product", backref=db.backref("batches", cascade="all, delete-orphan"))
+
+    def __repr__(self) -> str:
+        return f"<ProductBatch product={self.product_id} rate={self.rate} qty={self.quantity_kg}>"
+
+def adjust_batch_stock(product_id, rate, amount):
+    """
+    Adjusts the stock of a specific product batch (rate-based).
+    If the batch doesn't exist, it creates a new one.
+    """
+    rate = round(float(rate or 0.0), 4)
+    batch = ProductBatch.query.filter_by(product_id=product_id, rate=rate).first()
+    if not batch:
+        batch = ProductBatch(product_id=product_id, rate=rate, quantity_kg=0.0)
+        db.session.add(batch)
+    batch.quantity_kg = round((batch.quantity_kg or 0.0) + amount, 2)
+
+def sync_product_total_stock(product_id):
+    """
+    Synchronizes a product's current_stock_kg to be the sum of all its batches.
+    """
+    prod = Product.query.get(product_id)
+    if prod:
+        total_stock = sum(b.quantity_kg for b in prod.batches)
+        prod.current_stock_kg = round(total_stock, 2)
 
 class Location(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1810,6 +1854,8 @@ def register_routes(app: Flask) -> None:
                             prod = Product.query.get(old_item.product_id)
                             if prod:
                                 prod.change_stock(old_item.quantity_kg)
+                                adjust_batch_stock(old_item.product_id, old_item.cost_rate_per_kg or 0.0, old_item.quantity_kg)
+                                sync_product_total_stock(old_item.product_id)
 
                     SaleItem.query.filter_by(sale_id=sale.id).delete()
 
@@ -1916,6 +1962,8 @@ def register_routes(app: Flask) -> None:
                             prod = Product.query.get(item.product_id)
                             if prod:
                                 prod.change_stock(-qty_kg)
+                                adjust_batch_stock(item.product_id, item.cost_rate_per_kg or 0.0, -qty_kg)
+                                sync_product_total_stock(item.product_id)
 
                     sale.quantity_kg = total_qty
 
@@ -2006,6 +2054,8 @@ def register_routes(app: Flask) -> None:
                     prod = Product.query.get(item.product_id)
                     if prod:
                         prod.change_stock(item.quantity_kg)
+                        adjust_batch_stock(item.product_id, item.cost_rate_per_kg or 0.0, item.quantity_kg)
+                        sync_product_total_stock(item.product_id)
 
             db.session.delete(sale)
             commit_or_rollback()
@@ -2103,6 +2153,8 @@ def register_routes(app: Flask) -> None:
                             prod = Product.query.get(item.product_id)
                             if prod:
                                 prod.change_stock(qty)
+                                adjust_batch_stock(item.product_id, item.rate_per_kg or 0.0, qty)
+                                sync_product_total_stock(item.product_id)
 
                 # Add freight to subtotal
                 subtotal += freight
@@ -2182,6 +2234,8 @@ def register_routes(app: Flask) -> None:
                         prod = Product.query.get(old_item.product_id)
                         if prod:
                             prod.change_stock(-old_item.quantity_kg)
+                            adjust_batch_stock(old_item.product_id, old_item.rate_per_kg or 0.0, -old_item.quantity_kg)
+                            sync_product_total_stock(old_item.product_id)
 
                 PurchaseItem.query.filter_by(purchase_id=purchase.id).delete()
 
@@ -2216,6 +2270,8 @@ def register_routes(app: Flask) -> None:
                             prod = Product.query.get(new_item.product_id)
                             if prod:
                                 prod.change_stock(qty)
+                                adjust_batch_stock(new_item.product_id, new_item.rate_per_kg or 0.0, qty)
+                                sync_product_total_stock(new_item.product_id)
 
                 # Add freight
                 subtotal += purchase.freight
@@ -2268,6 +2324,8 @@ def register_routes(app: Flask) -> None:
                 prod = Product.query.get(item.product_id)
                 if prod:
                     prod.change_stock(-item.quantity_kg)
+                    adjust_batch_stock(item.product_id, item.rate_per_kg or 0.0, -item.quantity_kg)
+                    sync_product_total_stock(item.product_id)
 
         db.session.delete(purchase)
         db.session.commit()
@@ -2658,11 +2716,22 @@ def register_routes(app: Flask) -> None:
     @app.route("/product/<int:id>/edit", methods=["POST"])
     def edit_product(id):
         p = Product.query.get_or_404(id)
+        
+        new_stock = float(request.form.get("current_stock") or 0)
+        new_val_rate = float(request.form.get("valuation_rate") or 0)
+        
         p.name = request.form.get("name")
         p.min_stock_kg = float(request.form.get("min_stock") or 0)
-        p.current_stock_kg = float(request.form.get("current_stock") or 0)
-        p.valuation_rate = float(request.form.get("valuation_rate") or 0)
+        p.valuation_rate = new_val_rate
+        
+        current_sum = sum(b.quantity_kg for b in p.batches)
+        diff = new_stock - current_sum
+        if diff != 0:
+            adjust_batch_stock(p.id, new_val_rate, diff)
+            
+        sync_product_total_stock(p.id)
         db.session.commit()
+        
         flash(f"Product {p.name} updated", "success")
         return redirect(url_for("products_list"))
 
@@ -2673,6 +2742,42 @@ def register_routes(app: Flask) -> None:
         db.session.commit()
         flash("Product deleted", "info")
         return redirect(url_for("products_list"))
+
+    @app.route("/product/<int:id>/batch/override", methods=["POST"])
+    def product_batch_override(id):
+        p = Product.query.get_or_404(id)
+        try:
+            batch_ids = request.form.getlist("batch_id[]")
+            quantities = request.form.getlist("quantity_kg[]")
+            
+            for i in range(min(len(batch_ids), len(quantities))):
+                b_id = int(batch_ids[i])
+                q_val = float(quantities[i] or 0.0)
+                batch = ProductBatch.query.get(b_id)
+                if batch and batch.product_id == id:
+                    batch.quantity_kg = round(q_val, 2)
+                    
+            # Handle new custom batch
+            new_rate_str = request.form.get("new_rate")
+            new_qty_str = request.form.get("new_qty")
+            if new_rate_str and new_rate_str.strip() and new_qty_str and new_qty_str.strip():
+                rate_val = round(float(new_rate_str), 4)
+                qty_val = round(float(new_qty_str), 2)
+                existing = ProductBatch.query.filter_by(product_id=id, rate=rate_val).first()
+                if existing:
+                    existing.quantity_kg = qty_val
+                else:
+                    new_batch = ProductBatch(product_id=id, rate=rate_val, quantity_kg=qty_val)
+                    db.session.add(new_batch)
+                    
+            sync_product_total_stock(id)
+            db.session.commit()
+            flash("Stock batches and overall stock updated successfully", "success")
+        except Exception as exc:
+            db.session.rollback()
+            flash(f"Error updating batches: {exc}", "danger")
+            
+        return redirect(url_for("product_stock_ledger", id=id))
 
     @app.route("/product/<int:id>/ledger")
     def product_stock_ledger(id):
@@ -2785,113 +2890,19 @@ def register_routes(app: Flask) -> None:
         display_stock = running_bal
         estimated_valuation = round(display_stock * (p.valuation_rate or 0.0), 2)
         
-        # FIFO stock batch breakdown as of end of this period
-        # Group purchases by rate, preserving their chronological order
-        from collections import defaultdict
-        purchases_by_rate = defaultdict(list)
-        for item, purchase in purchases_query:
-            if not filter_start or purchase.date < date(filter_yr + (1 if filter_mo == 12 else 0), 1 if filter_mo == 12 else filter_mo + 1, 1):
-                purchases_by_rate[item.rate_per_kg or 0.0].append({
-                    "date": purchase.date,
-                    "vendor": purchase.vendor_name,
-                    "qty": item.quantity_kg or 0.0,
-                    "rate": item.rate_per_kg or 0.0,
-                    "purchase_id": purchase.id
-                })
-        
-        # Sort each rate's purchase batches chronologically (oldest first)
-        for r_val in purchases_by_rate:
-            purchases_by_rate[r_val].sort(key=lambda x: (x["date"], x["purchase_id"]))
-            
-        # Group sales by CP (cost_rate_per_kg)
-        sales_by_rate = defaultdict(float)
-        for item, sale in sales_query:
-            if not filter_start or sale.date < date(filter_yr + (1 if filter_mo == 12 else 0), 1 if filter_mo == 12 else filter_mo + 1, 1):
-                sales_by_rate[item.cost_rate_per_kg or 0.0] += (item.quantity_kg or 0.0)
-                
+        # Fetch batches from the database
+        db_batches = ProductBatch.query.filter_by(product_id=id).order_by(ProductBatch.rate.desc()).all()
         breakdown = []
-        for rate, batches in purchases_by_rate.items():
-            sales_to_consume = sales_by_rate.get(rate, 0.0)
-            for batch in batches:
-                p_qty = batch["qty"]
-                if sales_to_consume >= p_qty:
-                    sales_to_consume -= p_qty
-                else:
-                    remaining_qty = p_qty - sales_to_consume
-                    sales_to_consume = 0.0
-                    if remaining_qty > 0:
-                        breakdown.append({
-                            "date": batch["date"],
-                            "vendor": batch["vendor"],
-                            "remaining_qty": round(remaining_qty, 2),
-                            "rate": batch["rate"],
-                            "total_val": round(remaining_qty * batch["rate"], 2),
-                            "ref_url": url_for("edit_purchase", purchase_id=batch["purchase_id"]),
-                            "ref_text": f"Purchase #{batch['purchase_id']}"
-                        })
-                    
-        # Reconcile with display stock
-        total_breakdown_qty = sum(b["remaining_qty"] for b in breakdown)
-        
-        if display_stock > total_breakdown_qty:
-            excess_qty = round(display_stock - total_breakdown_qty, 2)
+        for batch in db_batches:
             breakdown.append({
-                "date": None,
-                "vendor": "Opening Stock / Adjustment",
-                "remaining_qty": excess_qty,
-                "rate": p.valuation_rate or 0.0,
-                "total_val": round(excess_qty * (p.valuation_rate or 0.0), 2),
-                "ref_url": None,
-                "ref_text": "System Baseline"
+                "id": batch.id,
+                "remaining_qty": batch.quantity_kg,
+                "rate": batch.rate,
+                "total_val": round(batch.quantity_kg * batch.rate, 2)
             })
-        elif display_stock < total_breakdown_qty:
-            surplus = round(total_breakdown_qty - display_stock, 2)
-            # Trim the oldest batches first: sort ascending by date
-            breakdown.sort(key=lambda x: x["date"] or date(1900, 1, 1))
-            reconciled_breakdown = []
-            for b in breakdown:
-                if surplus > 0:
-                    if b["remaining_qty"] <= surplus:
-                        surplus = round(surplus - b["remaining_qty"], 2)
-                    else:
-                        b["remaining_qty"] = round(b["remaining_qty"] - surplus, 2)
-                        b["total_val"] = round(b["remaining_qty"] * b["rate"], 2)
-                        surplus = 0.0
-                        reconciled_breakdown.append(b)
-                else:
-                    reconciled_breakdown.append(b)
-            breakdown = reconciled_breakdown
             
-        # Consolidate breakdown entries of the same price/rate AND same vendor
-        consolidated = {}
-        for b in breakdown:
-            rate = b["rate"]
-            vendor = b["vendor"] or ""
-            key = (rate, vendor)
-            if key not in consolidated:
-                consolidated[key] = {
-                    "date": b["date"],
-                    "vendor": vendor,
-                    "remaining_qty": 0.0,
-                    "rate": rate,
-                    "total_val": 0.0,
-                    "ref_url": b["ref_url"],
-                    "ref_text": b["ref_text"]
-                }
-            consolidated[key]["remaining_qty"] += b["remaining_qty"]
-            consolidated[key]["total_val"] += b["total_val"]
-            if b["date"] and (consolidated[key]["date"] is None or b["date"] > consolidated[key]["date"]):
-                consolidated[key]["date"] = b["date"]
-                consolidated[key]["ref_url"] = b["ref_url"]
-                consolidated[key]["ref_text"] = b["ref_text"]
-                
-        breakdown = list(consolidated.values())
-        for b in breakdown:
-            b["remaining_qty"] = round(b["remaining_qty"], 2)
-            b["total_val"] = round(b["total_val"], 2)
-
-        # Sort newest remaining batches first for layout display (opening stock goes to bottom)
-        breakdown.sort(key=lambda x: x["date"] or date(1900, 1, 1), reverse=True)
+        display_stock = running_bal if filter_start else p.current_stock_kg
+        estimated_valuation = sum(b["total_val"] for b in breakdown)
 
         
         return render_template(
