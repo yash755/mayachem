@@ -2917,10 +2917,39 @@ def register_routes(app: Flask) -> None:
                 "total_val": round(batch.quantity_kg * batch.rate, 2)
             })
             
+        # Compute transaction history for each batch based on price rate matching
+        from collections import defaultdict
+        batch_histories = defaultdict(list)
+        for batch in db_batches:
+            r_val = round(batch.rate, 4)
+            # Additions
+            for item, purchase in purchases_query:
+                if round(item.rate_per_kg or 0.0, 4) == r_val:
+                    batch_histories[batch.id].append({
+                        "date": purchase.date,
+                        "type": "Purchase",
+                        "party": purchase.vendor_name,
+                        "qty_change": item.quantity_kg or 0.0,
+                        "ref_url": url_for("edit_purchase", purchase_id=purchase.id),
+                        "ref_text": f"Purchase #{purchase.id}"
+                    })
+            # Reductions
+            for item, sale in sales_query:
+                if round(item.cost_rate_per_kg or 0.0, 4) == r_val:
+                    batch_histories[batch.id].append({
+                        "date": sale.date,
+                        "type": "Sale",
+                        "party": sale.client_name,
+                        "qty_change": -(item.quantity_kg or 0.0),
+                        "ref_url": url_for("sales_form", sale_id=sale.id),
+                        "ref_text": f"Sale #{sale.id}"
+                    })
+            # Sort newest transactions first
+            batch_histories[batch.id].sort(key=lambda x: x["date"], reverse=True)
+            
         display_stock = running_bal if filter_start else p.current_stock_kg
         estimated_valuation = sum(b["total_val"] for b in breakdown)
 
-        
         return render_template(
             "product_ledger.html",
             product=p,
@@ -2930,7 +2959,8 @@ def register_routes(app: Flask) -> None:
             estimated_valuation=estimated_valuation,
             stock_breakdown=breakdown,
             display_stock=display_stock,
-            month_filter=month_filter
+            month_filter=month_filter,
+            batch_histories=batch_histories
         )
 
     @app.route("/reports/stock")

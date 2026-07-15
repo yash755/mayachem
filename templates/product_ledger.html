@@ -174,9 +174,71 @@
                                 ₹{{ "%.2f"|format(batch.total_val) }}
                             </td>
                             <td class="text-end pe-4 d-print-none">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="if(confirm('Delete this price batch?')) { this.form.action='{{ url_for('delete_product_batch', id=product.id, batch_id=batch.id) }}'; return true; } else { return false; }">
-                                    <i class="bi bi-trash"></i>
-                                </button>
+                                <div class="d-flex align-items-center justify-content-end gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleBatchHistory({{ batch.id }})" title="View Batch History">
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="if(confirm('Delete this price batch?')) { this.form.action='{{ url_for('delete_product_batch', id=product.id, batch_id=batch.id) }}'; return true; } else { return false; }">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Collapsible row for batch transaction log details -->
+                        <tr id="batch-history-row-{{ batch.id }}" class="d-none bg-light d-print-none">
+                            <td colspan="4" class="p-3 bg-light">
+                                <div class="card border border-secondary-subtle rounded-3 shadow-sm m-1">
+                                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold text-secondary small"><i class="bi bi-journal-text me-1 text-primary"></i> Transaction History for ₹{{ "%.2f"|format(batch.rate) }}/kg Batch</span>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm align-middle mb-0 text-muted" style="font-size: 0.85rem;">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th class="ps-3" style="width: 140px;">Date</th>
+                                                        <th style="width: 110px;">Type</th>
+                                                        <th>Party</th>
+                                                        <th class="text-end" style="width: 150px;">Qty Change</th>
+                                                        <th class="text-end pe-3" style="width: 120px;">Ref</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% set history = batch_histories.get(batch.id, []) %}
+                                                    {% for h_entry in history %}
+                                                    <tr class="{% if h_entry.qty_change > 0 %}table-success-subtle{% else %}table-danger-subtle{% endif %}">
+                                                        <td class="ps-3">{{ h_entry.date.strftime('%d-%b-%Y') }}</td>
+                                                        <td>
+                                                            {% if h_entry.qty_change > 0 %}
+                                                            <span class="badge bg-success-subtle text-success py-1"><i class="bi bi-arrow-down-left-circle me-1"></i> Purchase</span>
+                                                            {% else %}
+                                                            <span class="badge bg-danger-subtle text-danger py-1"><i class="bi bi-arrow-up-right-circle me-1"></i> Sale</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ h_entry.party }}</td>
+                                                        <td class="text-end fw-bold text-dark">
+                                                            {% if h_entry.qty_change > 0 %}
+                                                            <span class="text-success">+{{ "%.1f"|format(h_entry.qty_change) }} kg</span>
+                                                            {% else %}
+                                                            <span class="text-danger">{{ "%.1f"|format(h_entry.qty_change) }} kg</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-end pe-3">
+                                                            <a href="{{ h_entry.ref_url }}" class="btn btn-xs btn-link p-0 text-decoration-none small">
+                                                                {{ h_entry.ref_text }} <i class="bi bi-box-arrow-up-right small"></i>
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                    {% else %}
+                                                    <tr>
+                                                        <td colspan="5" class="text-center py-3 text-muted">No transactions found matching this price rate.</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                         {% else %}
@@ -367,4 +429,14 @@
         </div>
     </div>
 </div>
+<script>
+function toggleBatchHistory(batchId) {
+    const row = document.getElementById('batch-history-row-' + batchId);
+    if (row.classList.contains('d-none')) {
+        row.classList.remove('d-none');
+    } else {
+        row.classList.add('d-none');
+    }
+}
+</script>
 {% endblock %}
