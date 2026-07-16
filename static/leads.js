@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   // --- Populate deal status filter from DEAL_CHOICES ---
-  function populateDealFilter() {
+  function populateDealFilter(selectedStatuses = null) {
     if (!dealFilterSelect) return;
     dealFilterSelect.innerHTML = "";
     if (Array.isArray(DEAL_CHOICES)) {
@@ -39,6 +39,16 @@ document.addEventListener("DOMContentLoaded", function() {
         const opt = document.createElement("option");
         opt.value = s;
         opt.textContent = s;
+        if (selectedStatuses) {
+          if (selectedStatuses.includes(s)) {
+            opt.selected = true;
+          }
+        } else {
+          // Default fallback on load
+          if (s === "Need To Visit" || s === "In Discussion") {
+            opt.selected = true;
+          }
+        }
         dealFilterSelect.appendChild(opt);
       });
     }
@@ -64,6 +74,11 @@ document.addEventListener("DOMContentLoaded", function() {
           leadLocationSelect.appendChild(opt);
 
           const opt2 = opt.cloneNode(true);
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlLocation = urlParams.get("location_id");
+          if (urlLocation && String(loc.id) === String(urlLocation)) {
+            opt2.selected = true;
+          }
           filterSelect.appendChild(opt2);
         });
         return data;
@@ -562,9 +577,21 @@ async function startInlineEdit(tr, lead) {
   }
 
   // initial setup
-  populateDealFilter();
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlLocation = urlParams.get("location_id") || null;
+  const urlDealStatus = urlParams.get("deal_status");
+  const parsedDealStatuses = urlDealStatus ? urlDealStatus.split(",").map(x => x.trim()) : null;
+
+  populateDealFilter(parsedDealStatuses);
   fetchLocations().then(() => {
     const initialDealSelections = getCurrentDealSelections();
-    loadLeads(null, null, initialDealSelections);
+    let initialLocName = null;
+    if (urlLocation && filterSelect) {
+      const selectedOpt = Array.from(filterSelect.options).find(o => String(o.value) === String(urlLocation));
+      if (selectedOpt) {
+        initialLocName = selectedOpt.textContent;
+      }
+    }
+    loadLeads(urlLocation, initialLocName, initialDealSelections);
   });
 });
