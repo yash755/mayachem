@@ -896,14 +896,20 @@ def register_routes(app: Flask) -> None:
         monthly_emi_amount = round(monthly_emi_amount, 2)
         
         emi_paid_this_month = 0
+        emi_paid_map = {}
         if active_monthly_taken:
             loan_ids = [l.id for l in active_monthly_taken]
-            emi_paid_raw = db.session.query(func.sum(LoanRepayment.amount)).filter(
+            emi_paid_raw = db.session.query(
+                LoanRepayment.loan_id,
+                func.sum(LoanRepayment.amount)
+            ).filter(
                 LoanRepayment.loan_id.in_(loan_ids),
                 db.func.strftime('%Y-%m', LoanRepayment.date) == current_ym
-            ).scalar()
-            if emi_paid_raw:
-                emi_paid_this_month = float(emi_paid_raw)
+            ).group_by(LoanRepayment.loan_id).all()
+            
+            for row in emi_paid_raw:
+                emi_paid_map[row[0]] = float(row[1])
+                emi_paid_this_month += float(row[1])
         
         total_emi_left = max(0, monthly_emi_amount - emi_paid_this_month)
 
@@ -979,7 +985,12 @@ def register_routes(app: Flask) -> None:
             target_earned=target_earned,
             target_remaining=target_remaining,
             target_progress=target_progress,
-            recurring_misc=recurring_misc
+            recurring_misc=recurring_misc,
+            
+            employees=employees,
+            salary_paid_map=salary_paid_map,
+            active_monthly_taken=active_monthly_taken,
+            emi_paid_map=emi_paid_map
         )
 
     # Clients
