@@ -155,6 +155,53 @@
 
 
 <!-- ===================== -->
+<!-- MONTHLY GOAL TARGET -->
+<!-- ===================== -->
+<div class="card shadow-sm mb-4 border-primary">
+  <div class="card-header bg-primary text-white fw-bold">
+    🎯 Monthly Target Tracker ({{ current_data.ym }})
+  </div>
+  <div class="card-body">
+    <div class="d-flex justify-content-between mb-2">
+      <span class="fw-semibold">Gross Profit Earned: ₹{{ "%.2f"|format(target_earned) }}</span>
+      <span class="fw-semibold text-muted">Goal: ₹{{ "%.2f"|format(total_monthly_target) }}</span>
+    </div>
+    
+    <div class="progress mb-3" style="height: 25px;">
+      <div class="progress-bar {% if target_progress >= 100 %}bg-success{% else %}bg-primary{% endif %} progress-bar-striped progress-bar-animated" role="progressbar" style="width: {{ target_progress }}%;" aria-valuenow="{{ target_progress }}" aria-valuemin="0" aria-valuemax="100">
+        {{ target_progress }}%
+      </div>
+    </div>
+    
+    <div class="row text-center text-muted small mt-2">
+      <div class="col-4">
+        <div>Total Salaries</div>
+        <div class="fw-bold">₹{{ "%.2f"|format(total_salary_target) }}</div>
+      </div>
+      <div class="col-4 border-start border-end">
+        <div>Total EMIs</div>
+        <div class="fw-bold">₹{{ "%.2f"|format(monthly_emi_amount) }}</div>
+      </div>
+      <div class="col-4">
+        <div><a href="{{ url_for('recurring_expenses') }}" class="text-decoration-none">Misc Fixed Costs</a></div>
+        <div class="fw-bold">₹{{ "%.2f"|format(recurring_misc) }}</div>
+      </div>
+    </div>
+    
+    {% if target_remaining > 0 %}
+    <div class="text-center mt-3 text-danger fw-semibold">
+      <i class="bi bi-exclamation-circle me-1"></i> ₹{{ "%.2f"|format(target_remaining) }} left to cover monthly fixed costs!
+    </div>
+    {% else %}
+    <div class="text-center mt-3 text-success fw-bold">
+      <i class="bi bi-check-circle-fill me-1"></i> Target Reached! Fixed costs are covered.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ===================== -->
 <!-- CURRENT MONTH -->
 <!-- ===================== -->
 <div class="card shadow-sm mb-4">

@@ -101,6 +101,11 @@ class ExpenseCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
 
+class RecurringExpense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+
 class Client(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(160), nullable=False, unique=True)
@@ -904,6 +909,26 @@ def register_routes(app: Flask) -> None:
         
         salary_paid_map = {row[0]: row[1] for row in salary_paid_raw}
         total_salary_left = sum(max(0, emp.monthly_salary - salary_paid_map.get(emp.id, 0)) for emp in employees)
+        
+        # --------------------------------------------------
+        # TARGET METRICS
+        # --------------------------------------------------
+        recurring_expenses_list = RecurringExpense.query.all()
+        recurring_misc = sum(re.amount for re in recurring_expenses_list)
+        
+        total_salary_target = sum(emp.monthly_salary for emp in employees)
+        
+        total_monthly_target = total_salary_target + monthly_emi_amount + recurring_misc
+        
+        # Earned against target: current month's Gross Profit (Sales - Cost - Freight)
+        target_earned = current_data["sp"] - current_data["cp"] - current_data["freight"]
+        if target_earned < 0:
+            target_earned = 0
+            
+        target_remaining = max(0, total_monthly_target - target_earned)
+        target_progress = 0
+        if total_monthly_target > 0:
+            target_progress = min(100, int((target_earned / total_monthly_target) * 100))
 
         products = Product.query.order_by(Product.current_stock_kg.desc()).limit(3).all()
 
@@ -935,6 +960,13 @@ def register_routes(app: Flask) -> None:
             loan_active_count=loan_active_count,
             monthly_loans_count=monthly_loans_count,
             monthly_emi_amount=monthly_emi_amount,
+            
+            total_salary_target=total_salary_target,
+            total_monthly_target=total_monthly_target,
+            target_earned=target_earned,
+            target_remaining=target_remaining,
+            target_progress=target_progress,
+            recurring_misc=recurring_misc
         )
 
     # Clients
@@ -2717,6 +2749,41 @@ def register_routes(app: Flask) -> None:
         db.session.commit()
         flash("Category deleted", "info")
         return redirect(url_for("expense_categories"))
+
+    @app.route("/recurring-expenses", methods=["GET", "POST"])
+    def recurring_expenses():
+        if request.method == "POST":
+            name = request.form.get("name")
+            amount = float(request.form.get("amount") or 0)
+            if name and amount > 0:
+                item = RecurringExpense(name=name, amount=amount)
+                db.session.add(item)
+                db.session.commit()
+                flash("Recurring expense added", "success")
+            return redirect(url_for("recurring_expenses"))
+        
+        items = RecurringExpense.query.order_by(RecurringExpense.name).all()
+        return render_template("recurring_expenses.html", items=items)
+
+    @app.route("/recurring-expenses/edit/<int:id>", methods=["POST"])
+    def recurring_expenses_edit(id):
+        item = RecurringExpense.query.get_or_404(id)
+        name = request.form.get("name")
+        amount = request.form.get("amount")
+        if name and amount:
+            item.name = name
+            item.amount = float(amount)
+            db.session.commit()
+            flash("Recurring expense updated", "success")
+        return redirect(url_for("recurring_expenses"))
+
+    @app.route("/recurring-expenses/<int:id>/delete", methods=["POST"])
+    def recurring_expenses_delete(id):
+        item = RecurringExpense.query.get_or_404(id)
+        db.session.delete(item)
+        db.session.commit()
+        flash("Recurring expense deleted", "info")
+        return redirect(url_for("recurring_expenses"))
 
     # Products & Stock
     @app.route("/products", methods=["GET", "POST"])
