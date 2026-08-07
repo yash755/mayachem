@@ -163,7 +163,7 @@
   </div>
   <div class="card-body">
     <div class="d-flex justify-content-between mb-2">
-      <span class="fw-semibold">Gross Profit Earned: ₹{{ "%.2f"|format(target_earned) }}</span>
+      <span class="fw-semibold">Net P/L Earned: ₹{{ "%.2f"|format(target_earned) }}</span>
       <span class="fw-semibold text-muted">Goal: ₹{{ "%.2f"|format(total_monthly_target) }}</span>
     </div>
     
@@ -176,11 +176,11 @@
     <div class="row text-center text-muted small mt-2">
       <div class="col-4">
         <div>Total Salaries</div>
-        <div class="fw-bold">₹{{ "%.2f"|format(total_salary_target) }}</div>
+        <div class="fw-bold">₹{{ "%.0f"|format(total_salary_left) }} / {{ "%.0f"|format(total_salary_target) }}</div>
       </div>
       <div class="col-4 border-start border-end">
         <div>Total EMIs</div>
-        <div class="fw-bold">₹{{ "%.2f"|format(monthly_emi_amount) }}</div>
+        <div class="fw-bold">₹{{ "%.0f"|format(total_emi_left) }} / {{ "%.0f"|format(monthly_emi_amount) }}</div>
       </div>
       <div class="col-4">
         <div><a href="{{ url_for('recurring_expenses') }}" class="text-decoration-none">Misc Fixed Costs</a></div>

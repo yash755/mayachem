@@ -894,6 +894,18 @@ def register_routes(app: Flask) -> None:
             if left > 0:
                 monthly_emi_amount += (l.outstanding() / left)
         monthly_emi_amount = round(monthly_emi_amount, 2)
+        
+        emi_paid_this_month = 0
+        if active_monthly_taken:
+            loan_ids = [l.id for l in active_monthly_taken]
+            emi_paid_raw = db.session.query(func.sum(LoanRepayment.amount)).filter(
+                LoanRepayment.loan_id.in_(loan_ids),
+                db.func.strftime('%Y-%m', LoanRepayment.date) == current_ym
+            ).scalar()
+            if emi_paid_raw:
+                emi_paid_this_month = float(emi_paid_raw)
+        
+        total_emi_left = max(0, monthly_emi_amount - emi_paid_this_month)
 
         # --------------------------------------------------
         # SALARY METRICS
@@ -920,8 +932,8 @@ def register_routes(app: Flask) -> None:
         
         total_monthly_target = total_salary_target + monthly_emi_amount + recurring_misc
         
-        # Earned against target: current month's Gross Profit (Sales - Cost - Freight)
-        target_earned = current_data["sp"] - current_data["cp"] - current_data["freight"]
+        # Earned against target: current month's Net P/L
+        target_earned = current_data["pl"]
         if target_earned < 0:
             target_earned = 0
             
@@ -960,6 +972,7 @@ def register_routes(app: Flask) -> None:
             loan_active_count=loan_active_count,
             monthly_loans_count=monthly_loans_count,
             monthly_emi_amount=monthly_emi_amount,
+            total_emi_left=total_emi_left,
             
             total_salary_target=total_salary_target,
             total_monthly_target=total_monthly_target,
