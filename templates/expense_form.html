@@ -48,6 +48,22 @@ selected
 </select>
 </div>
 
+<div class="mb-3" id="loan-group" style="display: none;">
+<label>Loan (For Loan Category)</label>
+<select name="loan_id" class="form-select">
+<option value="">Select Loan</option>
+{% for ln in active_loans %}
+<option value="{{ ln.id }}"
+{% if expense and expense.loan_id == ln.id %}
+selected
+{% endif %}
+>
+{{ ln.loan_name or ln.party_name }} {% if ln.payment_frequency == 'monthly' %}({{ ln.emis_left() }}/{{ ln.total_emi }}) {% endif %}{{ ln.loan_type|capitalize }}
+</option>
+{% endfor %}
+</select>
+</div>
+
 <div class="mb-3">
 <label>Description</label>
 <input name="description" class="form-control"
@@ -80,17 +96,23 @@ value="{{ expense.amount if expense else '' }}">
 document.addEventListener('DOMContentLoaded', function() {
     var categorySelect = document.querySelector('select[name="category"]');
     var employeeGroup = document.getElementById('employee-group');
+    var loanGroup = document.getElementById('loan-group');
     
-    function toggleEmployee() {
+    function toggleFields() {
         if (categorySelect.value === 'Labour') {
             employeeGroup.style.display = 'block';
+            loanGroup.style.display = 'none';
+        } else if (categorySelect.value === 'Loan') {
+            employeeGroup.style.display = 'none';
+            loanGroup.style.display = 'block';
         } else {
             employeeGroup.style.display = 'none';
+            loanGroup.style.display = 'none';
         }
     }
     
-    categorySelect.addEventListener('change', toggleEmployee);
-    toggleEmployee(); // Initial state
+    categorySelect.addEventListener('change', toggleFields);
+    toggleFields(); // Initial state
 });
 </script>
 

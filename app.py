@@ -186,6 +186,7 @@ class Employee(db.Model):
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=True)
+    loan_id = db.Column(db.Integer, db.ForeignKey('loan.id'), nullable=True)
 
     date = db.Column(db.Date, nullable=False)
 
@@ -471,6 +472,7 @@ class Lead(db.Model):
 
 class Loan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    loan_name = db.Column(db.String(200), nullable=True)
     loan_type = db.Column(db.String(16), nullable=False)          # "given" or "taken"
     party_name = db.Column(db.String(200), nullable=False)
     principal = db.Column(db.Float, nullable=False, default=0.0)
@@ -480,8 +482,16 @@ class Loan(db.Model):
     notes = db.Column(db.Text, nullable=True)
     is_closed = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    payment_frequency = db.Column(db.String(20), nullable=False, default="one_time") # "monthly" or "one_time"
+    total_emi = db.Column(db.Integer, nullable=True, default=0)
 
     repayments = db.relationship("LoanRepayment", backref="loan", cascade="all, delete-orphan", order_by="LoanRepayment.date")
+
+    def emis_paid(self):
+        return len(self.repayments)
+
+    def emis_left(self):
+        return max(0, (self.total_emi or 0) - self.emis_paid())
 
     def total_repaid(self):
         return round(sum(r.amount for r in self.repayments), 2)
@@ -869,6 +879,16 @@ def register_routes(app: Flask) -> None:
         loan_given_out  = round(sum(l.outstanding() for l in active_loans if l.loan_type == "given"), 2)
         loan_taken_out  = round(sum(l.outstanding() for l in active_loans if l.loan_type == "taken"), 2)
         loan_active_count = len(active_loans)
+        
+        active_monthly_taken = [l for l in active_loans if l.loan_type == 'taken' and l.payment_frequency == 'monthly']
+        monthly_loans_count = len(active_monthly_taken)
+        
+        monthly_emi_amount = 0
+        for l in active_monthly_taken:
+            left = l.emis_left()
+            if left > 0:
+                monthly_emi_amount += (l.outstanding() / left)
+        monthly_emi_amount = round(monthly_emi_amount, 2)
 
         # --------------------------------------------------
         # SALARY METRICS
@@ -913,6 +933,8 @@ def register_routes(app: Flask) -> None:
             loan_given_out=loan_given_out,
             loan_taken_out=loan_taken_out,
             loan_active_count=loan_active_count,
+            monthly_loans_count=monthly_loans_count,
+            monthly_emi_amount=monthly_emi_amount,
         )
 
     # Clients
@@ -3503,6 +3525,7 @@ def register_routes(app: Flask) -> None:
         expense = Expense.query.get(expense_id) if expense_id else None
         employees = Employee.query.order_by(Employee.name).all()
         categories = [c.name for c in ExpenseCategory.query.order_by(ExpenseCategory.name).all()]
+        active_loans = Loan.query.filter_by(is_closed=False).all()
 
         if request.method == "POST":
             try:
@@ -3513,15 +3536,20 @@ def register_routes(app: Flask) -> None:
                 mode = request.form.get("mode")
                 employee_id_raw = request.form.get("employee_id")
                 employee_id = int(employee_id_raw) if employee_id_raw else None
+                loan_id_raw = request.form.get("loan_id")
+                loan_id = int(loan_id_raw) if loan_id_raw else None
+                
+                is_new = not expense
 
-                if not expense:
+                if is_new:
                     expense = Expense(
                         date=date,
                         category=category,
                         description=description,
                         amount=amount,
                         mode=mode,
-                        employee_id=employee_id
+                        employee_id=employee_id,
+                        loan_id=loan_id
                     )
                     db.session.add(expense)
                 else:
@@ -3531,6 +3559,13 @@ def register_routes(app: Flask) -> None:
                     expense.amount = amount
                     expense.mode = mode
                     expense.employee_id = employee_id
+                    expense.loan_id = loan_id
+                
+                db.session.flush()
+
+                if is_new and category == "Loan" and loan_id:
+                    rep = LoanRepayment(loan_id=loan_id, date=date, amount=amount, mode=mode, notes=description)
+                    db.session.add(rep)
 
                 commit_or_rollback()
 
@@ -3544,7 +3579,8 @@ def register_routes(app: Flask) -> None:
             "expense_form.html",
             expense=expense,
             categories=categories,
-            employees=employees
+            employees=employees,
+            active_loans=active_loans
         )
 
 
@@ -3601,12 +3637,14 @@ def register_cli(app: Flask) -> None:
     def loans_list():
         if request.method == "POST":
             party    = (request.form.get("party_name") or "").strip()
+            lname    = (request.form.get("loan_name") or "").strip()
             ltype    = request.form.get("loan_type") or "given"
             principal = _to_float(request.form.get("principal"), 0.0)
             rate     = _to_float(request.form.get("interest_rate"), 0.0)
             date_str = request.form.get("date_issued") or ""
             due_str  = request.form.get("due_date") or ""
             notes    = (request.form.get("notes") or "").strip()
+            freq     = request.form.get("payment_frequency") or "one_time"
 
             if not party or principal <= 0:
                 flash("Party name and principal amount are required.", "warning")
@@ -3625,7 +3663,14 @@ def register_cli(app: Flask) -> None:
                 except Exception:
                     pass
 
+            tot_emi = 0
+            if freq == 'monthly' and due and issued:
+                tot_emi = (due.year - issued.year) * 12 + due.month - issued.month
+                if tot_emi < 0:
+                    tot_emi = 0
+
             loan = Loan(
+                loan_name=lname,
                 loan_type=ltype,
                 party_name=party,
                 principal=principal,
@@ -3633,6 +3678,8 @@ def register_cli(app: Flask) -> None:
                 date_issued=issued,
                 due_date=due,
                 notes=notes or None,
+                payment_frequency=freq,
+                total_emi=tot_emi
             )
             db.session.add(loan)
             commit_or_rollback()
@@ -3713,10 +3760,12 @@ def register_cli(app: Flask) -> None:
     @app.route("/loans/edit/<int:loan_id>", methods=["POST"])
     def loan_edit(loan_id):
         loan = Loan.query.get_or_404(loan_id)
+        loan.loan_name = (request.form.get("loan_name") or "").strip()
         loan.loan_type = request.form.get("loan_type")
         loan.party_name = request.form.get("party_name")
         loan.principal = float(request.form.get("principal") or 0)
         loan.interest_rate = float(request.form.get("interest_rate") or 0)
+        loan.payment_frequency = request.form.get("payment_frequency") or "one_time"
         
         date_issued_str = request.form.get("date_issued")
         if date_issued_str:
@@ -3728,6 +3777,12 @@ def register_cli(app: Flask) -> None:
         else:
             loan.due_date = None
             
+        if loan.payment_frequency == 'monthly' and loan.due_date and loan.date_issued:
+            loan.total_emi = (loan.due_date.year - loan.date_issued.year) * 12 + loan.due_date.month - loan.date_issued.month
+            if loan.total_emi < 0:
+                loan.total_emi = 0
+        else:
+            loan.total_emi = 0
         loan.notes = request.form.get("notes")
         db.session.commit()
         flash("Loan updated successfully", "success")

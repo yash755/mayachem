@@ -42,6 +42,9 @@
         {% if loan.interest_rate %}
         · Interest: <strong class="text-dark">{{ loan.interest_rate }}% p.a.</strong>
         {% endif %}
+        {% if loan.payment_frequency == 'monthly' %}
+        · EMI: <strong class="text-primary">{{ loan.emis_left() }}/{{ loan.total_emi }} left</strong>
+        {% endif %}
       </div>
       {% if loan.notes %}<div class="text-muted small mt-1">{{ loan.notes }}</div>{% endif %}
     </div>
