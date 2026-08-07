@@ -932,10 +932,10 @@ def register_routes(app: Flask) -> None:
         
         total_monthly_target = total_salary_target + monthly_emi_amount + recurring_misc
         
-        # Earned against target: current month's Net P/L
-        target_earned = current_data["pl"]
-        if target_earned < 0:
-            target_earned = 0
+        # Achieved: How much of the fixed costs have been paid this month
+        salary_paid = total_salary_target - total_salary_left
+        emi_paid = monthly_emi_amount - total_emi_left
+        target_earned = salary_paid + emi_paid
             
         target_remaining = max(0, total_monthly_target - target_earned)
         target_progress = 0
