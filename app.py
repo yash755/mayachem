@@ -1059,6 +1059,13 @@ def register_routes(app: Flask) -> None:
                     client = Client(name=name, address=address, gst=gst, phone=phone, opening_balance=opening_balance)
                     db.session.add(client)
                 else:
+                    if client.name != name:
+                        old_name = client.name
+                        # update all sales with the old client name
+                        sales = Sale.query.filter_by(client_name=old_name).all()
+                        for s in sales:
+                            s.client_name = name
+                            
                     client.name = name
                     client.address = address
                     client.gst = gst
