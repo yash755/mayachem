@@ -932,7 +932,30 @@ def register_routes(app: Flask) -> None:
         # TARGET METRICS
         # --------------------------------------------------
         recurring_expenses_list = RecurringExpense.query.all()
-        recurring_misc = sum(re.amount for re in recurring_expenses_list)
+        recurring_misc_target = sum(re.amount for re in recurring_expenses_list)
+        
+        recurring_category_names = [re.name for re in recurring_expenses_list]
+        recurring_paid_map = {}
+        if recurring_category_names:
+            recurring_paid_raw = db.session.query(
+                Expense.category,
+                func.sum(Expense.amount)
+            ).filter(
+                Expense.category.in_(recurring_category_names),
+                db.func.strftime('%Y-%m', Expense.date) == current_ym
+            ).group_by(Expense.category).all()
+            for row in recurring_paid_raw:
+                recurring_paid_map[row[0]] = float(row[1])
+                
+        recurring_misc_left = 0
+        recurring_misc_paid_capped = 0
+        for re in recurring_expenses_list:
+            paid = recurring_paid_map.get(re.name, 0)
+            left = max(0, re.amount - paid)
+            recurring_misc_left += left
+            recurring_misc_paid_capped += min(re.amount, paid)
+            
+        recurring_misc = recurring_misc_target
         
         total_salary_target = sum(emp.monthly_salary for emp in employees)
         
@@ -941,7 +964,7 @@ def register_routes(app: Flask) -> None:
         # Achieved: How much of the fixed costs have been paid this month
         salary_paid = total_salary_target - total_salary_left
         emi_paid = monthly_emi_amount - total_emi_left
-        target_earned = salary_paid + emi_paid
+        target_earned = salary_paid + emi_paid + recurring_misc_paid_capped
             
         target_remaining = max(0, total_monthly_target - target_earned)
         target_progress = 0
@@ -986,11 +1009,14 @@ def register_routes(app: Flask) -> None:
             target_remaining=target_remaining,
             target_progress=target_progress,
             recurring_misc=recurring_misc,
+            recurring_misc_left=recurring_misc_left,
             
             employees=employees,
             salary_paid_map=salary_paid_map,
             active_monthly_taken=active_monthly_taken,
-            emi_paid_map=emi_paid_map
+            emi_paid_map=emi_paid_map,
+            recurring_expenses_list=recurring_expenses_list,
+            recurring_paid_map=recurring_paid_map
         )
 
     # Clients
@@ -2787,7 +2813,8 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for("recurring_expenses"))
         
         items = RecurringExpense.query.order_by(RecurringExpense.name).all()
-        return render_template("recurring_expenses.html", items=items)
+        categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
+        return render_template("recurring_expenses.html", items=items, categories=categories)
 
     @app.route("/recurring-expenses/edit/<int:id>", methods=["POST"])
     def recurring_expenses_edit(id):

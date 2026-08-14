@@ -14,7 +14,7 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>Name</th>
+                    <th>Category</th>
                     <th class="text-end">Amount (₹)</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -56,8 +56,13 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">Name</label>
-                    <input type="text" name="name" class="form-control" value="{{ item.name }}" required>
+                    <label class="form-label">Category</label>
+                    <select name="name" class="form-select" required>
+                        <option value="">-- Select Category --</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.name }}" {% if item.name == cat.name %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Amount (₹)</label>
@@ -83,8 +88,13 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">Name</label>
-                    <input type="text" name="name" class="form-control" placeholder="e.g. Electricity" required>
+                    <label class="form-label">Category</label>
+                    <select name="name" class="form-select" required>
+                        <option value="">-- Select Category --</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.name }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Amount (₹)</label>

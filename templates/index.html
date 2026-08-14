@@ -183,8 +183,8 @@
         <div class="fw-bold">₹{{ "%.0f"|format(total_emi_left) }} / {{ "%.0f"|format(monthly_emi_amount) }}</div>
       </div>
       <div class="col-4">
-        <div><a href="{{ url_for('recurring_expenses') }}" class="text-decoration-none">Misc Fixed Costs</a></div>
-        <div class="fw-bold">₹{{ "%.2f"|format(recurring_misc) }}</div>
+        <div><a href="#" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#miscBreakdownModal">Misc Fixed Costs</a></div>
+        <div class="fw-bold">₹{{ "%.0f"|format(recurring_misc_left) }} / {{ "%.0f"|format(recurring_misc) }}</div>
       </div>
     </div>
     
@@ -559,6 +559,45 @@ bg-danger
           <li class="list-group-item text-center text-muted">No active monthly taken loans.</li>
           {% endfor %}
         </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Misc Breakdown Modal -->
+<div class="modal fade" id="miscBreakdownModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Misc Fixed Costs Breakdown ({{ current_data.ym }})</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <ul class="list-group list-group-flush">
+          {% for item in recurring_expenses_list %}
+          {% set paid = recurring_paid_map.get(item.name, 0) %}
+          {% set left = [0, item.amount - paid]|max %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ item.name }}</strong>
+              <div class="small text-muted">Target: ₹{{ "%.0f"|format(item.amount) }}</div>
+            </div>
+            <div class="text-end">
+              {% if left <= 0 %}
+                <span class="badge bg-success rounded-pill">Paid</span>
+              {% else %}
+                <span class="badge bg-warning text-dark rounded-pill">₹{{ "%.0f"|format(left) }} Left</span>
+              {% endif %}
+              <div class="small text-muted mt-1">Paid: ₹{{ "%.0f"|format(paid) }}</div>
+            </div>
+          </li>
+          {% else %}
+          <li class="list-group-item text-center text-muted">No recurring expenses found.</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <a href="{{ url_for('recurring_expenses') }}" class="btn btn-outline-primary w-100">Manage Recurring Expenses</a>
       </div>
     </div>
   </div>
