@@ -2786,10 +2786,21 @@ def register_routes(app: Flask) -> None:
     def expense_categories_edit(id):
         cat = ExpenseCategory.query.get_or_404(id)
         name = request.form.get("name")
-        if name:
+        if name and name != cat.name:
+            old_name = cat.name
             cat.name = name
+            
+            # Update all references in Expenses and RecurringExpenses
+            expenses = Expense.query.filter_by(category=old_name).all()
+            for exp in expenses:
+                exp.category = name
+                
+            recurring = RecurringExpense.query.filter_by(name=old_name).all()
+            for rec in recurring:
+                rec.name = name
+                
             db.session.commit()
-            flash("Category updated", "success")
+            flash("Category and all related records updated", "success")
         return redirect(url_for("expense_categories"))
 
     @app.route("/expense-categories/<int:id>/delete", methods=["POST"])
