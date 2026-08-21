@@ -1925,12 +1925,6 @@ def register_routes(app: Flask) -> None:
         clients = Client.query.order_by(Client.name.asc()).all()
         bottle_types = BottleType.query.order_by(BottleType.quantity_ltr.asc()).all()
         hcl_products = Product.query.order_by(Product.name).all()
-        
-        product_batches_map = {}
-        for p in hcl_products:
-            batches = ProductBatch.query.filter_by(product_id=p.id).filter(ProductBatch.quantity_kg > 0).order_by(ProductBatch.rate.asc()).all()
-            product_batches_map[p.id] = [b.rate for b in batches]
-
 
         if request.method == "POST":
             try:
@@ -2129,7 +2123,6 @@ def register_routes(app: Flask) -> None:
             clients=clients,
             bottle_types=bottle_types,
             hcl_products=hcl_products,
-            product_batches_map=product_batches_map,
             sale_type=sale.sale_type if sale else "bill",
         )
 
