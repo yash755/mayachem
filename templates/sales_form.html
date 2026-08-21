@@ -95,7 +95,10 @@
         </div>
 
         <!-- BILL MODE -->
-        <div id="bill-mode" style="display:none;" class="col-12">
+        <div id="bill-mode" class="col-12">
+          <script>
+            window.productBatches = {{ product_batches_map | tojson | safe if product_batches_map else '{}' }};
+          </script>
           <label class="form-label">Line Items (Bill)</label>
           <div class="table-responsive">
             <table class="table table-sm mobile-table" id="items-table-bill">

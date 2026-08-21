@@ -189,6 +189,9 @@
           gstSelect.className = 'form-select gst-percent-select';
           gstSelect.value = gst_val;
 
+          // Cost rate select
+          var costSelectStr = '<select name="cost_rate[]" class="form-select cp-select"></select>';
+
           tr.innerHTML = "" +
             '<td class="prod-cell"></td>' +
             '<td><input name="quantity[]" class="form-control" value="' + (q) + '"></td>' +
@@ -196,13 +199,52 @@
             '<option value="kg"' + (unit === "kg" ? " selected" : "") + '>kg</option>' +
             '<option value="ton"' + (unit === "ton" ? " selected" : "") + '>ton</option>' +
             '</select></td>' +
-            '<td><input name="cost_rate[]" class="form-control" value="' + (cost) + '"></td>' +
+            '<td>' + costSelectStr + '</td>' +
             '<td><input name="sell_rate[]" class="form-control" value="' + (sell) + '"></td>' +
             '<td class="gst-cell"></td>' +
             '<td><button type="button" class="btn btn-sm btn-danger remove-row">−</button></td>';
           
           tr.querySelector('.prod-cell').appendChild(prodSelect);
           tr.querySelector('.gst-cell').appendChild(gstSelect);
+
+          var costSelect = tr.querySelector('select[name="cost_rate[]"]');
+
+          prodSelect.addEventListener('change', function() {
+            costSelect.innerHTML = '';
+            var pId = prodSelect.value;
+            var added = false;
+            if (pId && window.productBatches && window.productBatches[pId]) {
+              window.productBatches[pId].forEach(function(rate) {
+                var opt = document.createElement('option');
+                opt.value = rate;
+                opt.textContent = rate;
+                costSelect.appendChild(opt);
+                added = true;
+              });
+            }
+            
+            // Ensure the initial cost is an option if provided
+            if (cost && cost !== "") {
+              var exists = Array.from(costSelect.options).some(function(o) { return parseFloat(o.value) == parseFloat(cost); });
+              if (!exists) {
+                var opt = document.createElement('option');
+                opt.value = cost;
+                opt.textContent = cost + ' (Current)';
+                costSelect.appendChild(opt);
+                added = true;
+              }
+              costSelect.value = cost;
+            } else if (!added) {
+              var opt = document.createElement('option');
+              opt.value = '0';
+              opt.textContent = '0';
+              costSelect.appendChild(opt);
+            }
+            computeBillTotals();
+          });
+          // Trigger once
+          setTimeout(function() { prodSelect.dispatchEvent(new Event('change')); }, 0);
+
 
           itemsBodyBill.appendChild(tr);
           qsa('input,select', tr).forEach(function (el) { el.addEventListener('input', computeBillTotals); });
@@ -317,10 +359,61 @@
         if (saleTypeEl) saleTypeEl.addEventListener('change', function () { showMode(saleTypeEl.value); });
 
         // wire existing bill rows
-        qsa('.item-row', itemsBodyBill).forEach(function (r) {
+        qsa('.item-row', itemsBodyBill).forEach(function (r, idx) {
           qsa('input,select', r).forEach(function (el) { el.addEventListener('input', computeBillTotals); });
           var rem = qs('.remove-row', r);
           if (rem) rem.addEventListener('click', function () { r.remove(); computeBillTotals(); });
+          
+          var prodSelect = qs('select[name="product_id[]"]', r);
+          var costSelect = qs('select[name="cost_rate[]"]', r);
+          
+          // Fallback if existing HTML has input instead of select (it will if rendered directly via jinja)
+          var costInput = qs('input[name="cost_rate[]"]', r);
+          if (costInput && prodSelect) {
+            // Replace input with select
+            var newSelect = document.createElement('select');
+            newSelect.name = 'cost_rate[]';
+            newSelect.className = 'form-select cp-select';
+            var currentCost = costInput.value;
+            costInput.parentNode.replaceChild(newSelect, costInput);
+            costSelect = newSelect;
+            costSelect.addEventListener('input', computeBillTotals);
+            costSelect.addEventListener('change', computeBillTotals);
+            
+            prodSelect.addEventListener('change', function() {
+              costSelect.innerHTML = '';
+              var pId = prodSelect.value;
+              var added = false;
+              if (pId && window.productBatches && window.productBatches[pId]) {
+                window.productBatches[pId].forEach(function(rate) {
+                  var opt = document.createElement('option');
+                  opt.value = rate;
+                  opt.textContent = rate;
+                  costSelect.appendChild(opt);
+                  added = true;
+                });
+              }
+              
+              if (currentCost && currentCost !== "") {
+                var exists = Array.from(costSelect.options).some(function(o) { return parseFloat(o.value) == parseFloat(currentCost); });
+                if (!exists) {
+                  var opt = document.createElement('option');
+                  opt.value = currentCost;
+                  opt.textContent = currentCost + ' (Current)';
+                  costSelect.appendChild(opt);
+                  added = true;
+                }
+                costSelect.value = currentCost;
+              } else if (!added) {
+                var opt = document.createElement('option');
+                opt.value = '0';
+                opt.textContent = '0';
+                costSelect.appendChild(opt);
+              }
+              computeBillTotals();
+            });
+            prodSelect.dispatchEvent(new Event('change'));
+          }
         });
 
         // bill add
