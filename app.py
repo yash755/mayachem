@@ -723,9 +723,37 @@ def register_routes(app: Flask) -> None:
         session.clear()
         return redirect(url_for("login"))
 
+    def get_current_fy(date_obj=None):
+        if not date_obj:
+            date_obj = datetime.now()
+        year = date_obj.year
+        if date_obj.month >= 4:
+            return f"{str(year)[-2:]}-{str(year+1)[-2:]}"
+        else:
+            return f"{str(year-1)[-2:]}-{str(year)[-2:]}"
+
+    def fy_to_dates(fy_str):
+        start_y = 2000 + int(fy_str.split('-')[0])
+        end_y = 2000 + int(fy_str.split('-')[1])
+        return f"{start_y}-04-01", f"{end_y}-03-31"
+
+    def get_all_fys():
+        current_y = datetime.now().year
+        fys = []
+        for y in range(2023, current_y + 2):
+            d = datetime(y, 4, 1)
+            fys.append(get_current_fy(d))
+        return sorted(list(set(fys)), reverse=True)
+
     # Dashboard
     @app.route("/")
     def index():
+        selected_fy = request.args.get("fy")
+        all_fys = get_all_fys()
+        if not selected_fy or selected_fy not in all_fys:
+            selected_fy = get_current_fy()
+            
+        fy_start, fy_end = fy_to_dates(selected_fy)
 
         # --------------------------------------------------
         # Latest sales
@@ -754,9 +782,11 @@ def register_routes(app: Flask) -> None:
                     COALESCE(sale.freight,0) freight
                 FROM sale
                 JOIN sale_item ON sale_item.sale_id = sale.id
+                WHERE sale.date >= :fy_start AND sale.date <= :fy_end
                 GROUP BY sale.id
             ) per_sale
-            """)
+            """),
+            {"fy_start": fy_start, "fy_end": fy_end}
         ).mappings().first()
 
         total_qty = float(totals["total_qty"] or 0)
@@ -869,6 +899,9 @@ def register_routes(app: Flask) -> None:
 
         total_expense = db.session.query(
             func.sum(Expense.amount)
+        ).filter(
+            Expense.date >= fy_start,
+            Expense.date <= fy_end
         ).scalar() or 0
 
         total_sale_pending = round(sum(s.balance_due() for s in sales), 2)
@@ -993,9 +1026,12 @@ def register_routes(app: Flask) -> None:
             monthly=monthly,
             current_data=current_data,
             products=products,
-
+            total_net_profit=total_net_profit,
             total_sale_pending=total_sale_pending,
             total_purchase_pending=total_purchase_pending,
+            
+            selected_fy=selected_fy,
+            all_fys=all_fys,
             total_expense=round(total_expense, 2),
             total_salary_left=round(total_salary_left, 2),
             chart_labels=json.dumps(chart_labels),

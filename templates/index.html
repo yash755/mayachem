@@ -1,7 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h3 class="mb-4">📊 Business Dashboard</h3>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3 class="mb-0">📊 Business Dashboard</h3>
+  <form class="d-flex align-items-center" method="GET" action="/">
+    <label class="me-2 fw-semibold text-secondary" style="white-space:nowrap;">Financial Year:</label>
+    <select name="fy" class="form-select form-select-sm" onchange="this.form.submit()" style="width:120px;">
+      {% for fy in all_fys %}
+      <option value="{{ fy }}" {% if fy == selected_fy %}selected{% endif %}>FY {{ fy }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
 
 <!-- ===================== -->
 <!-- TOP SUMMARY CARDS -->
