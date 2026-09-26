@@ -2,27 +2,19 @@
 {% block content %}
 
 <style>
-  .client-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    border-radius: 12px;
-    border: 1px solid #e9ecef;
-  }
-  .client-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.1) !important;
-  }
   .client-avatar {
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     flex-shrink: 0;
     background: linear-gradient(135deg, #4f46e5, #7c3aed);
     color: white;
+    margin-right: 10px;
   }
   .balance-badge {
     font-size: 0.8rem;
@@ -32,15 +24,13 @@
   }
   .action-btn {
     font-size: 0.78rem;
-    padding: 4px 10px;
+    padding: 4px 8px;
     border-radius: 6px;
     font-weight: 500;
     white-space: nowrap;
   }
   .search-box { max-width: 360px; }
-  .client-meta { font-size: 0.82rem; color: #6c757d; }
   .no-clients { padding: 60px 0; }
-  .section-title { font-weight: 700; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; margin-top: 30px; margin-bottom: 20px; }
 </style>
 
 <!-- Header -->
@@ -65,78 +55,81 @@
   </div>
 </div>
 
-{% macro render_party(c, balance) %}
-  <div class="col client-col" data-name="{{ c.name | lower }}">
-    <div class="card client-card shadow-sm h-100 p-3">
-      <!-- Name + avatar + balance -->
-      <div class="d-flex align-items-start gap-3 mb-2">
-        <div class="client-avatar">{{ c.name[0] | upper }}</div>
-        <div class="flex-grow-1 min-w-0">
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
-            <h6 class="mb-0 fw-bold text-truncate" style="max-width: 200px;" title="{{ c.name }}">{{ c.name }}</h6>
-            
-            {% if not c.is_active %}
-              <span class="badge bg-secondary">Inactive</span>
-            {% endif %}
-            
-            {% if balance > 0 %}
-              <span class="balance-badge bg-danger-subtle text-danger">₹{{ "{:,.0f}".format(balance) }} due</span>
-            {% elif balance < 0 %}
-              <span class="balance-badge bg-success-subtle text-success">₹{{ "{:,.0f}".format(balance|abs) }} advance</span>
-            {% else %}
-              <span class="balance-badge bg-success-subtle text-success">Settled</span>
-            {% endif %}
+{% macro render_party_table(parties, balances) %}
+<div class="table-responsive bg-white rounded shadow-sm border">
+  <table class="table table-hover align-middle mb-0 party-table">
+    <thead class="table-light">
+      <tr>
+        <th>Name</th>
+        <th>Contact Info</th>
+        <th>Balance</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in parties %}
+      {% set balance = balances.get(c.id, 0) %}
+      <tr class="party-row" data-name="{{ c.name | lower }}">
+        <td>
+          <div class="d-flex align-items-center">
+            <div class="client-avatar">{{ c.name[0] | upper }}</div>
+            <div>
+              <div class="fw-bold">{{ c.name }}</div>
+              {% if not c.is_active %}
+                <span class="badge bg-secondary" style="font-size: 0.65rem;">Inactive</span>
+              {% endif %}
+            </div>
           </div>
-
-          <!-- Meta -->
-          <div class="client-meta mt-1 d-flex flex-wrap gap-2">
-            {% if c.phone %}
-            <span><i class="bi bi-telephone me-1"></i>{{ c.phone }}</span>
-            {% endif %}
-            {% if c.gst %}
-            <span><i class="bi bi-building me-1"></i>{{ c.gst }}</span>
-            {% endif %}
-          </div>
-          {% if c.address %}
-          <div class="client-meta text-truncate mt-1" title="{{ c.address }}">
-            <i class="bi bi-geo-alt me-1"></i>{{ c.address }}
-          </div>
+        </td>
+        <td>
+          {% if c.phone %}<div class="text-muted small"><i class="bi bi-telephone me-1"></i>{{ c.phone }}</div>{% endif %}
+          {% if c.gst %}<div class="text-muted small"><i class="bi bi-building me-1"></i>{{ c.gst }}</div>{% endif %}
+          {% if c.address %}<div class="text-muted small text-truncate" style="max-width:200px;" title="{{ c.address }}"><i class="bi bi-geo-alt me-1"></i>{{ c.address }}</div>{% endif %}
+        </td>
+        <td>
+          {% if balance > 0 %}
+            <span class="balance-badge bg-danger-subtle text-danger">₹{{ "{:,.0f}".format(balance) }} due</span>
+          {% elif balance < 0 %}
+            <span class="balance-badge bg-success-subtle text-success">₹{{ "{:,.0f}".format(balance|abs) }} adv</span>
+          {% else %}
+            <span class="balance-badge bg-success-subtle text-success">Settled</span>
           {% endif %}
-        </div>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="d-flex flex-wrap gap-2 mt-auto pt-2 border-top">
-        <a class="action-btn btn btn-outline-primary" href="{{ url_for('party_ledger', party_type='client', name=c.name) }}">
-          <i class="bi bi-journal-text me-1"></i>Ledger
-        </a>
-        <a class="action-btn btn btn-success text-white" href="{{ url_for('add_client_collection', client_id=c.id) }}">
-          <i class="bi bi-wallet2 me-1"></i>Payment
-        </a>
-        {% if c.phone %}
-        <a class="action-btn btn btn-outline-success"
-           href="https://wa.me/{{ c.phone }}?text=Hello%20{{ c.name }}%2C%20this%20is%20from%20Maya%20Chemicals."
-           target="_blank" title="WhatsApp">
-          <i class="bi bi-whatsapp"></i>
-        </a>
-        {% endif %}
-        <div class="ms-auto d-flex gap-1">
-          <a class="action-btn btn btn-outline-secondary" href="{{ url_for('clients_form', client_id=c.id) }}" title="Edit">
-            <i class="bi bi-pencil"></i>
-          </a>
-          <form method="post" action="{{ url_for('clients_delete', client_id=c.id) }}"
-                onsubmit="return confirm('Delete {{ c.name }}?');" class="d-inline">
-            <button class="action-btn btn btn-outline-danger" title="Delete">
-              <i class="bi bi-trash"></i>
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
+        </td>
+        <td class="text-end">
+          <div class="d-flex justify-content-end gap-1">
+            <a class="action-btn btn btn-outline-primary" href="{{ url_for('party_ledger', party_type='client', name=c.name) }}" title="Ledger">
+              <i class="bi bi-journal-text"></i>
+            </a>
+            <a class="action-btn btn btn-success text-white" href="{{ url_for('add_client_collection', client_id=c.id) }}" title="Payment">
+              <i class="bi bi-wallet2"></i>
+            </a>
+            {% if c.phone %}
+            <a class="action-btn btn btn-outline-success" href="https://wa.me/{{ c.phone }}?text=Hello%20{{ c.name }}%2C%20this%20is%20from%20Maya%20Chemicals." target="_blank" title="WhatsApp">
+              <i class="bi bi-whatsapp"></i>
+            </a>
+            {% endif %}
+            <a class="action-btn btn btn-outline-secondary" href="{{ url_for('clients_form', client_id=c.id) }}" title="Edit">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{{ url_for('clients_delete', client_id=c.id) }}" onsubmit="return confirm('Delete {{ c.name }}?');" class="d-inline">
+              <button class="action-btn btn btn-outline-danger" title="Delete">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not parties %}
+      <tr>
+        <td colspan="4" class="text-center text-muted py-4">No parties in this section.</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
 {% endmacro %}
 
-<!-- Cards Grid -->
 {% if rows %}
 
 {% set clients = [] %}
@@ -150,32 +143,35 @@
   {% if not r.is_client and not r.is_vendor and not r.is_other %}{% set _ = others.append(r) %}{% endif %}
 {% endfor %}
 
-{% if clients %}
-<h5 class="section-title text-primary"><i class="bi bi-people-fill me-2"></i>Clients</h5>
-<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch">
-  {% for c in clients %}
-    {{ render_party(c, balances.get(c.id, 0)) }}
-  {% endfor %}
-</div>
-{% endif %}
+<ul class="nav nav-tabs mb-4" id="partyTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active fw-bold text-primary" id="clients-tab" data-bs-toggle="tab" data-bs-target="#clients" type="button" role="tab">
+      <i class="bi bi-people-fill me-1"></i> Clients ({{ clients|length }})
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-info" id="vendors-tab" data-bs-toggle="tab" data-bs-target="#vendors" type="button" role="tab">
+      <i class="bi bi-truck me-1"></i> Vendors ({{ vendors|length }})
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-secondary" id="others-tab" data-bs-toggle="tab" data-bs-target="#others" type="button" role="tab">
+      <i class="bi bi-building-add me-1"></i> Others ({{ others|length }})
+    </button>
+  </li>
+</ul>
 
-{% if vendors %}
-<h5 class="section-title text-info"><i class="bi bi-truck me-2"></i>Vendors</h5>
-<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch mt-2">
-  {% for c in vendors %}
-    {{ render_party(c, balances.get(c.id, 0)) }}
-  {% endfor %}
+<div class="tab-content" id="partyTabsContent">
+  <div class="tab-pane fade show active" id="clients" role="tabpanel">
+    {{ render_party_table(clients, balances) }}
+  </div>
+  <div class="tab-pane fade" id="vendors" role="tabpanel">
+    {{ render_party_table(vendors, balances) }}
+  </div>
+  <div class="tab-pane fade" id="others" role="tabpanel">
+    {{ render_party_table(others, balances) }}
+  </div>
 </div>
-{% endif %}
-
-{% if others %}
-<h5 class="section-title text-secondary"><i class="bi bi-building-add me-2"></i>Others</h5>
-<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch mt-2">
-  {% for c in others %}
-    {{ render_party(c, balances.get(c.id, 0)) }}
-  {% endfor %}
-</div>
-{% endif %}
 
 <!-- No results -->
 <div id="no-results" class="text-center text-muted no-clients" style="display:none;">
@@ -197,12 +193,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   search.addEventListener('input', function () {
     const q = this.value.toLowerCase().trim();
-    const cols = document.querySelectorAll('.client-col');
+    const rows = document.querySelectorAll('.party-row');
     let visible = 0;
-    cols.forEach(col => {
-      const name = col.dataset.name || '';
+    rows.forEach(row => {
+      const name = row.dataset.name || '';
       const show = !q || name.includes(q);
-      col.classList.toggle('d-none', !show);
+      row.style.display = show ? '' : 'none';
       if (show) visible++;
     });
     const noRes = document.getElementById('no-results');
