@@ -40,16 +40,17 @@
   .search-box { max-width: 360px; }
   .client-meta { font-size: 0.82rem; color: #6c757d; }
   .no-clients { padding: 60px 0; }
+  .section-title { font-weight: 700; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; margin-top: 30px; margin-bottom: 20px; }
 </style>
 
 <!-- Header -->
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <div>
-    <h4 class="mb-0 fw-bold">Clients</h4>
-    <small class="text-muted">{{ rows|length }} client{{ 's' if rows|length != 1 }}</small>
+    <h4 class="mb-0 fw-bold">Parties</h4>
+    <small class="text-muted">{{ rows|length }} total part{{ 'ies' if rows|length != 1 else 'y' }}</small>
   </div>
   <a class="btn btn-primary px-4" href="{{ url_for('clients_form') }}">
-    <i class="bi bi-plus-lg me-1"></i> New Client
+    <i class="bi bi-plus-lg me-1"></i> New Party
   </a>
 </div>
 
@@ -60,24 +61,24 @@
       <i class="bi bi-search text-muted"></i>
     </span>
     <input type="text" id="liveSearch" class="form-control border-start-0 ps-0"
-           placeholder="Search clients…" value="{{ q }}" autofocus>
+           placeholder="Search parties…" value="{{ q }}" autofocus>
   </div>
 </div>
 
-<!-- Cards Grid -->
-{% if rows %}
-<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch" id="client-grid">
-  {% for c in rows %}
-  {% set balance = balances.get(c.id, 0) %}
+{% macro render_party(c, balance) %}
   <div class="col client-col" data-name="{{ c.name | lower }}">
     <div class="card client-card shadow-sm h-100 p-3">
-
       <!-- Name + avatar + balance -->
       <div class="d-flex align-items-start gap-3 mb-2">
         <div class="client-avatar">{{ c.name[0] | upper }}</div>
         <div class="flex-grow-1 min-w-0">
           <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
             <h6 class="mb-0 fw-bold text-truncate" style="max-width: 200px;" title="{{ c.name }}">{{ c.name }}</h6>
+            
+            {% if not c.is_active %}
+              <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+            
             {% if balance > 0 %}
               <span class="balance-badge bg-danger-subtle text-danger">₹{{ "{:,.0f}".format(balance) }} due</span>
             {% elif balance < 0 %}
@@ -131,22 +132,61 @@
           </form>
         </div>
       </div>
-
     </div>
   </div>
+{% endmacro %}
+
+<!-- Cards Grid -->
+{% if rows %}
+
+{% set clients = [] %}
+{% set vendors = [] %}
+{% set others = [] %}
+
+{% for r in rows %}
+  {% if r.is_client %}{% set _ = clients.append(r) %}{% endif %}
+  {% if r.is_vendor %}{% set _ = vendors.append(r) %}{% endif %}
+  {% if r.is_other %}{% set _ = others.append(r) %}{% endif %}
+  {% if not r.is_client and not r.is_vendor and not r.is_other %}{% set _ = others.append(r) %}{% endif %}
+{% endfor %}
+
+{% if clients %}
+<h5 class="section-title text-primary"><i class="bi bi-people-fill me-2"></i>Clients</h5>
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch">
+  {% for c in clients %}
+    {{ render_party(c, balances.get(c.id, 0)) }}
   {% endfor %}
 </div>
+{% endif %}
+
+{% if vendors %}
+<h5 class="section-title text-info"><i class="bi bi-truck me-2"></i>Vendors</h5>
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch mt-2">
+  {% for c in vendors %}
+    {{ render_party(c, balances.get(c.id, 0)) }}
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if others %}
+<h5 class="section-title text-secondary"><i class="bi bi-building-add me-2"></i>Others</h5>
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 align-items-stretch mt-2">
+  {% for c in others %}
+    {{ render_party(c, balances.get(c.id, 0)) }}
+  {% endfor %}
+</div>
+{% endif %}
 
 <!-- No results -->
 <div id="no-results" class="text-center text-muted no-clients" style="display:none;">
   <i class="bi bi-person-x fs-1 d-block mb-2"></i>
-  No clients match your search.
+  No parties match your search.
 </div>
 
 {% else %}
 <div class="text-center text-muted no-clients">
   <i class="bi bi-people fs-1 d-block mb-2"></i>
-  No clients found. <a href="{{ url_for('clients_form') }}">Add your first client →</a>
+  No parties found. <a href="{{ url_for('clients_form') }}">Add your first party →</a>
 </div>
 {% endif %}
 

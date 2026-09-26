@@ -127,6 +127,10 @@ class Client(db.Model):
     gst = db.Column(db.String(32), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
     opening_balance = db.Column(db.Float, nullable=False, default=0.0)
+    is_client = db.Column(db.Boolean, default=True, nullable=False, server_default='1')
+    is_vendor = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
+    is_other = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
+    is_active = db.Column(db.Boolean, default=True, nullable=False, server_default='1')
 
     def __repr__(self) -> str:
         return f"<Client {self.name}>"
@@ -1101,12 +1105,17 @@ def register_routes(app: Flask) -> None:
             gst = (request.form.get("gst") or "").strip().upper()
             phone = (request.form.get("phone") or "").strip()
             opening_balance = _to_float(request.form.get("opening_balance"), 0.0)
+            is_client = request.form.get("is_client") == "on"
+            is_vendor = request.form.get("is_vendor") == "on"
+            is_other = request.form.get("is_other") == "on"
+            is_active = request.form.get("is_active") == "on"
+            
             if not name:
                 flash("Client name is required", "danger")
                 return render_template("clients_form.html", client=client)
             try:
                 if not client:
-                    client = Client(name=name, address=address, gst=gst, phone=phone, opening_balance=opening_balance)
+                    client = Client(name=name, address=address, gst=gst, phone=phone, opening_balance=opening_balance, is_client=is_client, is_vendor=is_vendor, is_other=is_other, is_active=is_active)
                     db.session.add(client)
                 else:
                     if client.name != name:
@@ -1121,6 +1130,10 @@ def register_routes(app: Flask) -> None:
                     client.gst = gst
                     client.phone = phone
                     client.opening_balance = opening_balance
+                    client.is_client = is_client
+                    client.is_vendor = is_vendor
+                    client.is_other = is_other
+                    client.is_active = is_active
                 commit_or_rollback()
                 flash("Client saved", "success")
                 return redirect(url_for("clients_list"))
@@ -4180,7 +4193,7 @@ def register_cli(app: Flask) -> None:
 
     @app.route("/reports/party-trends")
     def party_trends():
-        clients = Client.query.all()
+        clients = Client.query.filter_by(is_active=True, is_client=True).all()
         trends = []
         today = datetime.now().date()
         
