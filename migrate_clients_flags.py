@@ -1,7 +1,9 @@
 import sqlite3
+import os
 
 def upgrade():
-    conn = sqlite3.connect('/Users/yash/Desktop/mayachem/instance/hcl_sales.db')
+    db_path = os.path.join(os.path.dirname(__file__), 'instance', 'hcl_sales.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     try:
         cursor.execute('ALTER TABLE client ADD COLUMN is_client BOOLEAN DEFAULT 1 NOT NULL;')
