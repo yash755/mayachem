@@ -3291,8 +3291,9 @@ def register_routes(app: Flask) -> None:
         bank_balance_setting = AppSetting.query.filter_by(key="bank_balance").first()
         bank_balance = float(bank_balance_setting.value) if bank_balance_setting and bank_balance_setting.value else 0.0
 
-        cash_in_hand_setting = AppSetting.query.filter_by(key="cash_in_hand").first()
-        cash_in_hand = float(cash_in_hand_setting.value) if cash_in_hand_setting and cash_in_hand_setting.value else 0.0
+        cash_received = db.session.query(func.sum(CashLedger.amount)).filter(CashLedger.transaction_type == "Received").scalar() or 0.0
+        cash_used = db.session.query(func.sum(CashLedger.amount)).filter(CashLedger.transaction_type == "Used").scalar() or 0.0
+        cash_in_hand = round(cash_received - cash_used, 2)
         
         net_position = round(total_receivable + stock_value + bank_balance + cash_in_hand - total_payable, 2)
         return render_template(
