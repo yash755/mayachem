@@ -1121,10 +1121,17 @@ def register_routes(app: Flask) -> None:
                     if client.name != name:
                         old_name = client.name
                         # update all sales with the old client name
-                        sales = Sale.query.filter_by(client_name=old_name).all()
-                        for s in sales:
+                        for s in Sale.query.filter_by(client_name=old_name).all():
                             s.client_name = name
-                            
+                        # update all cash ledger entries
+                        for c in CashLedger.query.filter_by(client_name=old_name).all():
+                            c.client_name = name
+                        # update all purchases
+                        for p in Purchase.query.filter_by(vendor_name=old_name).all():
+                            p.vendor_name = name
+                        # update all vendor collections
+                        for v in VendorCollection.query.filter_by(vendor_name=old_name).all():
+                            v.vendor_name = name
                     client.name = name
                     client.address = address
                     client.gst = gst
