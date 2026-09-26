@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Twilio Test{% endblock %}
+
+{% block content %}
+<div class="container mt-4" style="max-width: 600px;">
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-header bg-white border-0 pt-4 pb-0 text-center">
+            <h4 class="fw-bold mb-0 text-dark"><i class="bi bi-whatsapp text-success me-2"></i>Test WhatsApp API</h4>
+            <p class="text-muted small mt-1 mb-0">Use this to verify your Twilio credentials</p>
+        </div>
+        <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('twilio_test') }}">
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-bold">Account SID *</label>
+                    <input type="text" name="account_sid" class="form-control" placeholder="AC..." required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-bold">Auth Token *</label>
+                    <input type="password" name="auth_token" class="form-control" placeholder="Your Auth Token" required>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label text-muted small fw-bold">From (Twilio Number) *</label>
+                        <input type="text" name="from_number" class="form-control" placeholder="whatsapp:+14155238886" required>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label text-muted small fw-bold">To (Your Number) *</label>
+                        <input type="text" name="to_number" class="form-control" placeholder="whatsapp:+919876543210" required>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label text-muted small fw-bold">Message *</label>
+                    <textarea name="message" class="form-control" rows="3" required>Hello from Mayachem Testing App! 🧪🚀</textarea>
+                </div>
+                
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-success py-2 fw-bold">
+                        <i class="bi bi-send-fill me-2"></i>Send Test Message
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

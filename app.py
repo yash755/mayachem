@@ -4279,6 +4279,32 @@ def register_cli(app: Flask) -> None:
             
         return render_template("party_trends.html", trends=trends)
 
+    @app.route("/twilio-test", methods=["GET", "POST"])
+    def twilio_test():
+        if request.method == "POST":
+            account_sid = request.form.get("account_sid")
+            auth_token = request.form.get("auth_token")
+            from_number = request.form.get("from_number")
+            to_number = request.form.get("to_number")
+            message = request.form.get("message")
+            
+            try:
+                from twilio.rest import Client as TwilioClient
+                client = TwilioClient(account_sid, auth_token)
+                
+                msg = client.messages.create(
+                    from_=from_number,
+                    body=message,
+                    to=to_number
+                )
+                flash(f"Success! Message queued with SID: {msg.sid}", "success")
+            except Exception as e:
+                flash(f"Twilio Error: {str(e)}", "danger")
+                
+            return redirect(url_for("twilio_test"))
+            
+        return render_template("twilio_test.html")
+
 # -----------------------------------------------------------------------------
 # Run (local dev)
 # -----------------------------------------------------------------------------
