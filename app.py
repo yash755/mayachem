@@ -3916,7 +3916,8 @@ def register_cli(app: Flask) -> None:
             date_str = request.form.get("date_issued") or ""
             due_str  = request.form.get("due_date") or ""
             notes    = (request.form.get("notes") or "").strip()
-            freq     = request.form.get("payment_frequency") or "one_time"
+            is_emi   = request.form.get("is_emi_based") == "on"
+            freq     = "monthly" if is_emi else "one_time"
 
             if not party or principal <= 0:
                 flash("Party name and principal amount are required.", "warning")
@@ -4037,7 +4038,8 @@ def register_cli(app: Flask) -> None:
         loan.party_name = request.form.get("party_name")
         loan.principal = float(request.form.get("principal") or 0)
         loan.interest_rate = float(request.form.get("interest_rate") or 0)
-        loan.payment_frequency = request.form.get("payment_frequency") or "one_time"
+        is_emi = request.form.get("is_emi_based") == "on"
+        loan.payment_frequency = "monthly" if is_emi else "one_time"
         
         date_issued_str = request.form.get("date_issued")
         if date_issued_str:

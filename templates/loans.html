@@ -69,12 +69,11 @@
         <label class="form-label-sm">Principal (₹) *</label>
         <input name="principal" type="number" step="0.01" min="0.01" class="form-control form-control-sm" placeholder="0.00" required>
       </div>
-      <div class="col-12 col-sm-6 col-md-2">
-        <label class="form-label-sm">Frequency</label>
-        <select name="payment_frequency" class="form-select form-select-sm">
-          <option value="one_time">One-Time</option>
-          <option value="monthly">Monthly</option>
-        </select>
+      <div class="col-12 col-sm-6 col-md-2 d-flex align-items-end mb-1">
+        <div class="form-check form-switch mt-4">
+          <input class="form-check-input" type="checkbox" name="is_emi_based" id="isEmiBased">
+          <label class="form-check-label form-label-sm ms-1" for="isEmiBased">EMI Based</label>
+        </div>
       </div>
       <div class="col-12 col-sm-6 col-md-2">
         <label class="form-label-sm">Interest (% /yr)</label>
@@ -125,9 +124,21 @@
   </div>
 </div>
 
-<!-- Loan cards -->
-{% if loans %}
-  {% for loan in loans %}
+<!-- Tabs for EMI vs One-Time -->
+<ul class="nav nav-tabs mb-4" id="loanTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active fw-bold text-primary" id="emi-tab" data-bs-toggle="tab" data-bs-target="#emi-loans" type="button" role="tab">
+      <i class="bi bi-calendar2-check me-1"></i> EMI Loans
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-info" id="onetime-tab" data-bs-toggle="tab" data-bs-target="#onetime-loans" type="button" role="tab">
+      <i class="bi bi-cash-stack me-1"></i> One-Time Loans
+    </button>
+  </li>
+</ul>
+
+{% macro render_loan_card(loan) %}
   <div class="loan-card shadow-sm">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
       <div>
@@ -161,13 +172,33 @@
       </div>
     </div>
   </div>
-  {% endfor %}
-{% else %}
-  <div class="text-center py-5 text-muted">
-    <i class="bi bi-cash-coin" style="font-size:2rem;display:block;margin-bottom:.5rem;"></i>
-    No loans found for selected filters.
+{% endmacro %}
+
+<div class="tab-content" id="loanTabsContent">
+  <!-- EMI Loans Tab -->
+  <div class="tab-pane fade show active" id="emi-loans" role="tabpanel">
+    {% set emi_loans = loans | selectattr("payment_frequency", "equalto", "monthly") | list %}
+    {% if emi_loans %}
+      {% for loan in emi_loans %}
+        {{ render_loan_card(loan) }}
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-5 text-muted">No EMI loans found for selected filters.</div>
+    {% endif %}
   </div>
-{% endif %}
+
+  <!-- One-Time Loans Tab -->
+  <div class="tab-pane fade" id="onetime-loans" role="tabpanel">
+    {% set ot_loans = loans | selectattr("payment_frequency", "equalto", "one_time") | list %}
+    {% if ot_loans %}
+      {% for loan in ot_loans %}
+        {{ render_loan_card(loan) }}
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-5 text-muted">No one-time loans found for selected filters.</div>
+    {% endif %}
+  </div>
+</div>
 
 {% for loan in loans %}
 <!-- Edit Loan Modal -->
@@ -203,12 +234,11 @@
             <label class="form-label-sm">Principal (₹) *</label>
             <input name="principal" type="number" step="0.01" class="form-control form-control-sm" value="{{ loan.principal }}" required>
           </div>
-          <div class="col-6">
-            <label class="form-label-sm">Frequency</label>
-            <select name="payment_frequency" class="form-select form-select-sm">
-              <option value="one_time" {% if loan.payment_frequency == 'one_time' %}selected{% endif %}>One-Time</option>
-              <option value="monthly" {% if loan.payment_frequency == 'monthly' %}selected{% endif %}>Monthly</option>
-            </select>
+          <div class="col-6 d-flex align-items-end mb-1">
+            <div class="form-check form-switch mt-4">
+              <input class="form-check-input" type="checkbox" name="is_emi_based" id="editEmiBased{{ loan.id }}" {% if loan.payment_frequency == 'monthly' %}checked{% endif %}>
+              <label class="form-check-label form-label-sm ms-1" for="editEmiBased{{ loan.id }}">EMI Based</label>
+            </div>
           </div>
           <div class="col-6">
             <label class="form-label-sm">Interest (% /yr)</label>
