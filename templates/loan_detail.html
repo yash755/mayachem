@@ -104,7 +104,12 @@
   <form method="post" action="{{ url_for('loan_repay', loan_id=loan.id) }}" class="row g-2">
     <div class="col-12 col-sm-6 col-md-3">
       <label class="form-label-sm">Amount (₹) *</label>
-      <input name="amount" type="number" step="0.01" min="0.01" class="form-control form-control-sm" required>
+      <div class="input-group input-group-sm">
+        <input name="amount" id="repayAmount" type="number" step="0.01" min="0.01" class="form-control" required>
+        {% if loan.payment_frequency == 'monthly' and loan.emi_amount() > 0 %}
+        <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('repayAmount').value='{{ loan.emi_amount() }}';">1 EMI</button>
+        {% endif %}
+      </div>
     </div>
     <div class="col-12 col-sm-6 col-md-2">
       <label class="form-label-sm">Date *</label>

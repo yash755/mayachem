@@ -517,6 +517,11 @@ class Loan(db.Model):
     def emis_left(self):
         return max(0, (self.total_emi or 0) - self.emis_paid())
 
+    def emi_amount(self):
+        if self.payment_frequency == 'monthly' and self.total_emi and self.total_emi > 0:
+            return round(self.total_due() / self.total_emi, 2)
+        return 0.0
+
     def total_repaid(self):
         return round(sum(r.amount for r in self.repayments), 2)
 
@@ -4023,6 +4028,19 @@ def register_cli(app: Flask) -> None:
 
         rep = LoanRepayment(loan_id=loan_id, date=rdate, amount=amount, mode=mode, notes=notes)
         db.session.add(rep)
+        
+        # Add to Expense if loan is taken (we are paying money out)
+        if loan.loan_type == 'taken':
+            expense = Expense(
+                date=rdate,
+                category="Loan",
+                description=f"EMI/Repayment: {loan.loan_name or loan.party_name} {notes or ''}".strip(),
+                amount=amount,
+                mode=mode,
+                loan_id=loan_id
+            )
+            db.session.add(expense)
+            
         # Auto-close if fully repaid
         if loan.total_repaid() + amount >= loan.total_due():
             loan.is_closed = True
