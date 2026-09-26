@@ -30,6 +30,15 @@
     </div>
   </div>
   <div class="col-md">
+    <div class="card p-3 shadow-sm border-0 h-100" style="border-left: 4px solid #17a2b8 !important;">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 class="text-muted small mb-1">Cash in Hand</h6>
+        <button class="btn btn-sm btn-link text-muted p-0" data-bs-toggle="modal" data-bs-target="#cashInHandModal"><i class="bi bi-pencil-square"></i></button>
+      </div>
+      <h4 class="text-info mb-0">₹ {{ "{:,.2f}".format(cash_in_hand) }}</h4>
+    </div>
+  </div>
+  <div class="col-md">
     <div class="card p-3 shadow-sm border-0 h-100" style="border-left: 4px solid #dc3545 !important;">
       <h6 class="text-muted small mb-1">Vendor Payables</h6>
       <h4 class="text-danger mb-0">₹ {{ "{:,.2f}".format(total_payable) }}</h4>
@@ -41,7 +50,7 @@
         Net Working Capital
         <i class="bi bi-info-circle-fill ms-1" style="font-size: 0.8rem; cursor: help;" 
            data-bs-toggle="tooltip" 
-           data-bs-title="Receivables + Stock + Bank Balance - Payables"></i>
+           data-bs-title="Receivables + Stock + Bank Balance + Cash in Hand - Payables"></i>
       </h6>
       <h4 class="mb-0">₹ {{ "{:,.2f}".format(net_position) }}</h4>
     </div>
@@ -61,6 +70,30 @@
           <div class="mb-3">
             <label for="bankBalanceInput" class="form-label">Current Bank Balance</label>
             <input type="number" step="0.01" class="form-control" id="bankBalanceInput" name="bank_balance" value="{{ bank_balance }}" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Cash in Hand Modal -->
+<div class="modal fade" id="cashInHandModal" tabindex="-1" aria-labelledby="cashInHandModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="POST" action="{{ url_for('update_cash_in_hand') }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="cashInHandModalLabel">Update Cash in Hand</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="cashInHandInput" class="form-label">Current Cash in Hand</label>
+            <input type="number" step="0.01" class="form-control" id="cashInHandInput" name="cash_in_hand" value="{{ cash_in_hand }}" required>
           </div>
         </div>
         <div class="modal-footer">

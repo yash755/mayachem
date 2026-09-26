@@ -102,6 +102,15 @@ class AppSetting(db.Model):
     key = db.Column(db.String(100), unique=True, nullable=False)
     value = db.Column(db.String(255), nullable=True)
 
+class CashLedger(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False)
+    transaction_type = db.Column(db.String(16), nullable=False) # 'Received' or 'Used'
+    client_name = db.Column(db.String(160), nullable=True) 
+    category = db.Column(db.String(160), nullable=True)
+    amount = db.Column(db.Float, nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+
 class ExpenseCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
@@ -3246,9 +3255,11 @@ def register_routes(app: Flask) -> None:
         
         bank_balance_setting = AppSetting.query.filter_by(key="bank_balance").first()
         bank_balance = float(bank_balance_setting.value) if bank_balance_setting and bank_balance_setting.value else 0.0
-        
-        net_position = round(total_receivable + stock_value + bank_balance - total_payable, 2)
 
+        cash_in_hand_setting = AppSetting.query.filter_by(key="cash_in_hand").first()
+        cash_in_hand = float(cash_in_hand_setting.value) if cash_in_hand_setting and cash_in_hand_setting.value else 0.0
+        
+        net_position = round(total_receivable + stock_value + bank_balance + cash_in_hand - total_payable, 2)
         return render_template(
             "monthly_performance_report.html",
             monthly=monthly,
@@ -3257,6 +3268,7 @@ def register_routes(app: Flask) -> None:
             total_payable=total_payable,
             stock_value=stock_value,
             bank_balance=bank_balance,
+            cash_in_hand=cash_in_hand,
             net_position=net_position
         )
 
@@ -3277,6 +3289,25 @@ def register_routes(app: Flask) -> None:
             
         db.session.commit()
         flash("Bank balance updated successfully.", "success")
+        return redirect(request.referrer or url_for('monthly_performance_report'))
+
+    @app.route("/settings/cash-in-hand", methods=["POST"])
+    def update_cash_in_hand():
+        balance_str = request.form.get("cash_in_hand", "0")
+        try:
+            balance = float(balance_str)
+        except ValueError:
+            balance = 0.0
+            
+        setting = AppSetting.query.filter_by(key="cash_in_hand").first()
+        if not setting:
+            setting = AppSetting(key="cash_in_hand", value=str(balance))
+            db.session.add(setting)
+        else:
+            setting.value = str(balance)
+            
+        db.session.commit()
+        flash("Cash in hand updated successfully.", "success")
         return redirect(request.referrer or url_for('monthly_performance_report'))
 
 
@@ -4079,6 +4110,72 @@ def register_cli(app: Flask) -> None:
             })
 
         return jsonify(results)
+
+
+    @app.route("/cash-ledger")
+    def cash_ledger():
+        items = CashLedger.query.order_by(CashLedger.date.desc(), CashLedger.id.desc()).all()
+        running_balance = sum(item.amount if item.transaction_type == 'Received' else -item.amount for item in items)
+        clients = Client.query.order_by(Client.name).all()
+        categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
+        today = datetime.now().strftime("%Y-%m-%d")
+        return render_template("cash_ledger.html", ledger_items=items, running_balance=running_balance, clients=clients, categories=categories, today=today)
+
+    @app.route("/cash-ledger/add", methods=["POST"])
+    def cash_ledger_add():
+        transaction_type = request.form.get("transaction_type")
+        date_str = request.form.get("date")
+        amount = float(request.form.get("amount", 0))
+        notes = request.form.get("notes")
+        
+        entry_date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else datetime.now().date()
+        
+        new_entry = CashLedger(
+            date=entry_date,
+            transaction_type=transaction_type,
+            amount=amount,
+            notes=notes
+        )
+        if transaction_type == "Received":
+            new_entry.client_name = request.form.get("client_name")
+        else:
+            new_entry.category = request.form.get("category")
+            
+        db.session.add(new_entry)
+        db.session.commit()
+        flash("Cash transaction added successfully.", "success")
+        return redirect(url_for("cash_ledger"))
+
+    @app.route("/cash-ledger/delete/<int:item_id>", methods=["POST"])
+    def cash_ledger_delete(item_id):
+        item = CashLedger.query.get_or_404(item_id)
+        db.session.delete(item)
+        db.session.commit()
+        flash("Cash transaction deleted.", "info")
+        return redirect(url_for("cash_ledger"))
+
+    @app.route("/cash-ledger/edit/<int:item_id>", methods=["POST"])
+    def cash_ledger_edit(item_id):
+        item = CashLedger.query.get_or_404(item_id)
+        
+        date_str = request.form.get("date")
+        amount = float(request.form.get("amount", 0))
+        notes = request.form.get("notes")
+        
+        if date_str:
+            item.date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        
+        item.amount = amount
+        item.notes = notes
+        
+        if item.transaction_type == "Received":
+            item.client_name = request.form.get("client_name")
+        else:
+            item.category = request.form.get("category")
+            
+        db.session.commit()
+        flash("Cash transaction updated.", "success")
+        return redirect(url_for("cash_ledger"))
 
 
 # -----------------------------------------------------------------------------
