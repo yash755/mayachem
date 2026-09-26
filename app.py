@@ -4284,9 +4284,14 @@ def register_cli(app: Flask) -> None:
         if request.method == "POST":
             account_sid = request.form.get("account_sid")
             auth_token = request.form.get("auth_token")
-            from_number = request.form.get("from_number")
-            to_number = request.form.get("to_number")
+            from_number = request.form.get("from_number").strip()
+            to_number = request.form.get("to_number").strip()
             message = request.form.get("message")
+            
+            if not from_number.startswith("whatsapp:"):
+                from_number = f"whatsapp:{from_number}"
+            if not to_number.startswith("whatsapp:"):
+                to_number = f"whatsapp:{to_number}"
             
             try:
                 from twilio.rest import Client as TwilioClient
