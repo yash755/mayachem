@@ -4178,6 +4178,47 @@ def register_cli(app: Flask) -> None:
         return redirect(url_for("cash_ledger"))
 
 
+    @app.route("/reports/party-trends")
+    def party_trends():
+        clients = Client.query.all()
+        trends = []
+        today = datetime.now().date()
+        
+        for client in clients:
+            sales = Sale.query.filter_by(client_name=client.name).order_by(Sale.date.asc()).all()
+            if len(sales) < 2:
+                continue
+                
+            intervals = []
+            for i in range(1, len(sales)):
+                delta = (sales[i].date - sales[i-1].date).days
+                if delta >= 0:
+                    intervals.append(delta)
+                    
+            if not intervals:
+                continue
+                
+            avg_days = sum(intervals) / len(intervals)
+            last_sale_date = sales[-1].date
+            expected_date = last_sale_date + timedelta(days=avg_days)
+            days_until = (expected_date - today).days
+            
+            status = "Overdue" if days_until < 0 else ("Due Soon" if days_until <= 7 else "Normal")
+            
+            trends.append({
+                "client_name": client.name,
+                "total_orders": len(sales),
+                "avg_cycle": round(avg_days, 1),
+                "last_order_date": last_sale_date,
+                "expected_date": expected_date,
+                "days_until": days_until,
+                "status": status
+            })
+            
+        trends.sort(key=lambda x: x["days_until"])
+            
+        return render_template("party_trends.html", trends=trends)
+
 # -----------------------------------------------------------------------------
 # Run (local dev)
 # -----------------------------------------------------------------------------
