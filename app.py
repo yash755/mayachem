@@ -1082,15 +1082,30 @@ def register_routes(app: Flask) -> None:
             query = query.filter(Client.name.ilike(f"%{q}%"))
         rows = query.order_by(Client.name.asc()).all()
 
-        # Compute outstanding balance per client for display
+        # Compute outstanding balance and last order date per client for display
         balances = {}
+        last_orders = {}
         for c in rows:
             sales = Sale.query.filter_by(client_name=c.name).all()
             total_sales = sum(s.total_amount() for s in sales)
             total_received = sum(s.total_received() for s in sales)
             balances[c.id] = round(c.opening_balance + total_sales - total_received, 2)
+            
+            # Find last order date
+            last_sale = Sale.query.filter_by(client_name=c.name).order_by(Sale.date.desc()).first()
+            last_purch = Purchase.query.filter_by(vendor_name=c.name).order_by(Purchase.date.desc()).first()
+            
+            dates = []
+            if last_sale: dates.append(last_sale.date)
+            if last_purch: dates.append(last_purch.date)
+            
+            # default to min date if no orders so they appear at the bottom
+            last_orders[c.id] = max(dates) if dates else datetime.min.date()
 
-        return render_template("clients_list.html", rows=rows, q=q, balances=balances)
+        # Sort by most recent order date descending
+        rows.sort(key=lambda x: last_orders[x.id], reverse=True)
+
+        return render_template("clients_list.html", rows=rows, q=q, balances=balances, last_orders=last_orders)
 
 
     @app.route("/clients/new", methods=["GET", "POST"])
@@ -4235,7 +4250,8 @@ def register_cli(app: Flask) -> None:
                 "status": status
             })
             
-        trends.sort(key=lambda x: x["days_until"])
+        # Sort by most recent order date descending
+        trends.sort(key=lambda x: x["last_order_date"], reverse=True)
             
         return render_template("party_trends.html", trends=trends)
 
