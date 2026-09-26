@@ -209,6 +209,7 @@ class Employee(db.Model):
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=True)
+    employee = db.relationship("Employee", backref="expenses")
     loan_id = db.Column(db.Integer, db.ForeignKey('loan.id'), nullable=True)
 
     date = db.Column(db.Date, nullable=False)
