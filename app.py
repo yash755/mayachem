@@ -646,7 +646,7 @@ def get_vendor_dues():
 
 
 def get_sales_outstanding():
-    clients = Client.query.order_by(Client.name).all()
+    clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
     report = {}
 
     for c in clients:
@@ -1181,7 +1181,8 @@ def register_routes(app: Flask) -> None:
         status_filter = request.args.get("status", "pending")
         q_list = [v for v in request.args.getlist("q") if v.strip()]
 
-        all_sales = Sale.query.order_by(Sale.date.desc()).all()
+        active_client_names = {c.name for c in Client.query.filter_by(is_active=True, is_client=True).all()}
+        all_sales = [s for s in Sale.query.order_by(Sale.date.desc()).all() if s.client_name in active_client_names]
 
         if status_filter == "paid":
             sales = [s for s in all_sales if s.payment_status() == "Paid"]
@@ -1195,7 +1196,7 @@ def register_routes(app: Flask) -> None:
         if q_list:
             sales = [s for s in sales if s.client_name in q_list]
 
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
 
         return render_template(
             "sales_payments.html",
@@ -1526,7 +1527,7 @@ def register_routes(app: Flask) -> None:
     def ledger_list():
         # Just a redirect or a simple search page for parties
         q = (request.args.get("q") or "").strip()
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
         return render_template("ledger_list.html", clients=clients, q=q)
 
     @app.route("/ledger/<party_type>/<path:name>")
@@ -2002,7 +2003,7 @@ def register_routes(app: Flask) -> None:
     def sales_form(sale_id=None):
 
         sale = Sale.query.get(sale_id) if sale_id else None
-        clients = Client.query.order_by(Client.name.asc()).all()
+        clients = Client.query.filter_by(is_active=True, is_client=True).order_by(Client.name.asc()).all()
         bottle_types = BottleType.query.order_by(BottleType.quantity_ltr.asc()).all()
         hcl_products = Product.query.order_by(Product.name).all()
 
@@ -2230,7 +2231,7 @@ def register_routes(app: Flask) -> None:
             Sale.id.desc()
         ).all()
 
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
 
         return render_template(
             "sales_list.html",
@@ -2276,8 +2277,9 @@ def register_routes(app: Flask) -> None:
         if month_filter:
             query = query.filter(db.func.strftime('%Y-%m', Purchase.date) == month_filter)
             
-        all_purchases = query.order_by(Purchase.date.desc()).all()
-        clients = Client.query.order_by(Client.name).all()
+        active_vendor_names = {c.name for c in Client.query.filter_by(is_active=True, is_vendor=True).all()}
+        all_purchases = [p for p in query.order_by(Purchase.date.desc()).all() if p.vendor_name in active_vendor_names]
+        clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
         return render_template("purchases.html", purchases=all_purchases, q_list=q_list, clients=clients, month_filter=month_filter)
 
 
@@ -2286,7 +2288,7 @@ def register_routes(app: Flask) -> None:
     @app.route("/purchase/new", methods=["GET", "POST"])
     def new_purchase():
 
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True, is_vendor=True).order_by(Client.name).all()
         products = Product.query.order_by(Product.name).all()
 
         if request.method == "POST":
@@ -2395,7 +2397,7 @@ def register_routes(app: Flask) -> None:
     def edit_purchase(purchase_id):
 
         purchase = Purchase.query.get_or_404(purchase_id)
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True, is_vendor=True).order_by(Client.name).all()
         products = Product.query.order_by(Product.name).all()
 
         if request.method == "POST":
@@ -2613,7 +2615,7 @@ def register_routes(app: Flask) -> None:
         if q_list:
             purchases = [p for p in purchases if p.vendor_name in q_list]
 
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
 
         return render_template(
             "payments_list.html",
@@ -3976,7 +3978,7 @@ def register_cli(app: Flask) -> None:
         total_taken_out = round(sum(l.outstanding() for l in all_active if l.loan_type == "taken"), 2)
 
         today = datetime.now().date().isoformat()
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
         return render_template(
             "loans.html",
             loans=loans,
@@ -4087,7 +4089,7 @@ def register_cli(app: Flask) -> None:
     @app.route("/reports/price-trend")
     def price_trend_report():
         products = Product.query.order_by(Product.name).all()
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
         # Get distinct vendor names from Purchases
         vendors = db.session.query(Purchase.vendor_name).distinct().all()
         vendor_list = [v[0] for v in vendors if v[0]]
@@ -4152,7 +4154,7 @@ def register_cli(app: Flask) -> None:
     def cash_ledger():
         items = CashLedger.query.order_by(CashLedger.date.desc(), CashLedger.id.desc()).all()
         running_balance = sum(item.amount if item.transaction_type == 'Received' else -item.amount for item in items)
-        clients = Client.query.order_by(Client.name).all()
+        clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
         categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
         today = datetime.now().strftime("%Y-%m-%d")
         return render_template("cash_ledger.html", ledger_items=items, running_balance=running_balance, clients=clients, categories=categories, today=today)
