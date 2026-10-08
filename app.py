@@ -230,6 +230,39 @@ class Expense(db.Model):
         return f"<Expense {self.category} ₹{self.amount}>"
 
 
+class CreditCardExpense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    card_bank = db.Column(db.String(50), nullable=False)
+    card_last4 = db.Column(db.String(10), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    merchant = db.Column(db.String(200))
+    txn_date = db.Column(db.Date, nullable=False)
+    category = db.Column(db.String(120), nullable=False, default="Uncategorized")
+    reference_no = db.Column(db.String(100), nullable=True)
+    billing_month = db.Column(db.String(7), nullable=False) # YYYY-MM
+    status = db.Column(db.String(20), default="unbilled") # unbilled / billed / paid
+    is_emi = db.Column(db.Boolean, default=False)
+    notes = db.Column(db.String(500))
+    raw_sms = db.Column(db.Text)
+    source = db.Column(db.String(20), default="sms") # sms / manual
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<CCExpense {self.card_bank} {self.card_last4} ₹{self.amount}>"
+
+
+class SmsIngestLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    raw_sms = db.Column(db.Text, nullable=False, unique=True)
+    sender = db.Column(db.String(50))
+    received_at = db.Column(db.DateTime, default=datetime.utcnow)
+    target_table = db.Column(db.String(50)) # 'expense' or 'credit_card' or 'ignored'
+    target_id = db.Column(db.Integer)
+
+    def __repr__(self):
+        return f"<SmsIngestLog {self.id}>"
+
+
 class SaleItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(db.Integer, db.ForeignKey("sale.id"), nullable=False)
@@ -718,7 +751,7 @@ def register_routes(app: Flask) -> None:
     @app.before_request
     def _require_login():
         # allow login, static without auth
-        open_endpoints = {"login", "static"}
+        open_endpoints = {"login", "static", "api_sms_ingest"}
         if request.endpoint in open_endpoints:
             return
         if not session.get("user"):
@@ -3755,6 +3788,172 @@ def register_routes(app: Flask) -> None:
         return jsonify({"id": loc.id, "name": loc.name})
 
 
+    @app.route("/api/sms/ingest", methods=["POST"])
+    def api_sms_ingest():
+        import re
+        data = request.json or {}
+        raw_sms = data.get("raw_sms", "").strip()
+        sender = data.get("sender", "").strip()
+
+        if not raw_sms:
+            return jsonify({"error": "Missing raw_sms"}), 400
+
+        # Dedupe
+        existing = SmsIngestLog.query.filter_by(raw_sms=raw_sms).first()
+        if existing:
+            return jsonify({"status": "duplicate", "target_table": existing.target_table, "target_id": existing.target_id}), 200
+
+        lower_sms = raw_sms.lower()
+        if "payment of rs" in lower_sms and "received" in lower_sms and "credit card" in lower_sms:
+            log = SmsIngestLog(raw_sms=raw_sms, sender=sender, target_table="ignored")
+            db.session.add(log)
+            db.session.commit()
+            return jsonify({"status": "ignored_payment"}), 200
+
+        amount_match = re.search(r'(?:rs\.?|inr)\s*([\d,]+\.?\d*)', lower_sms)
+        amount = 0.0
+        if amount_match:
+            try:
+                amount = float(amount_match.group(1).replace(",", ""))
+            except:
+                pass
+
+        is_credit_card = False
+        if "credit card" in lower_sms or "card ending" in lower_sms or "spent using" in lower_sms:
+            is_credit_card = True
+        elif sender.upper() in ["HDFCBK", "ICICIT", "SBICRD", "AXISBK", "AMEX"]:
+            if "card" in lower_sms:
+                is_credit_card = True
+
+        txn_date = datetime.utcnow().date()
+        billing_month = txn_date.strftime("%Y-%m")
+
+        if is_credit_card:
+            bank = sender.upper() if sender else "Unknown"
+            last4_match = re.search(r'ending (?:\s*with\s*)?(?:\w+)?\s*(\d{4})', lower_sms)
+            if not last4_match:
+                last4_match = re.search(r'[xX]+(\d{4})', lower_sms)
+            last4 = last4_match.group(1) if last4_match else "0000"
+
+            cce = CreditCardExpense(
+                card_bank=bank,
+                card_last4=last4,
+                amount=amount,
+                merchant="Extracted from SMS",
+                txn_date=txn_date,
+                category="Uncategorized",
+                billing_month=billing_month,
+                status="unbilled",
+                raw_sms=raw_sms,
+                source="sms"
+            )
+            db.session.add(cce)
+            db.session.commit()
+
+            log = SmsIngestLog(raw_sms=raw_sms, sender=sender, target_table="credit_card", target_id=cce.id)
+            db.session.add(log)
+            db.session.commit()
+            return jsonify({"status": "created", "target_table": "credit_card", "id": cce.id}), 201
+        else:
+            e = Expense(
+                date=txn_date,
+                category="Uncategorized",
+                description=f"SMS: {raw_sms[:50]}...",
+                amount=amount,
+                mode="Bank"
+            )
+            db.session.add(e)
+            db.session.commit()
+
+            log = SmsIngestLog(raw_sms=raw_sms, sender=sender, target_table="expense", target_id=e.id)
+            db.session.add(log)
+            db.session.commit()
+            return jsonify({"status": "created", "target_table": "expense", "id": e.id}), 201
+
+
+    @app.route("/credit-card-expenses")
+    def cc_expenses_list():
+        card_filter = request.args.get("card")
+        month_filter = request.args.get("month")
+
+        query = CreditCardExpense.query
+        
+        if card_filter:
+            query = query.filter(CreditCardExpense.card_bank.ilike(f"%{card_filter}%"))
+            
+        if month_filter:
+            query = query.filter(CreditCardExpense.billing_month == month_filter)
+
+        expenses = query.order_by(CreditCardExpense.txn_date.desc()).all()
+        total = sum(e.amount for e in expenses)
+
+        return render_template("credit_card_expenses.html", expenses=expenses, total=total, card_filter=card_filter, month_filter=month_filter)
+
+    @app.route("/credit-card-expenses/new", methods=["GET", "POST"])
+    @app.route("/credit-card-expenses/<int:expense_id>/edit", methods=["GET", "POST"])
+    def cc_expenses_form(expense_id=None):
+        expense = None
+        if expense_id:
+            expense = CreditCardExpense.query.get_or_404(expense_id)
+
+        if request.method == "POST":
+            card_bank = request.form.get("card_bank")
+            card_last4 = request.form.get("card_last4")
+            amount = float(request.form.get("amount") or 0)
+            merchant = request.form.get("merchant")
+            txn_date = request.form.get("txn_date")
+            category = request.form.get("category", "Uncategorized")
+            billing_month = request.form.get("billing_month")
+            status = request.form.get("status", "unbilled")
+
+            try:
+                date_obj = datetime.strptime(txn_date, "%Y-%m-%d").date()
+            except:
+                date_obj = datetime.utcnow().date()
+
+            if not expense:
+                expense = CreditCardExpense(source="manual")
+                db.session.add(expense)
+
+            expense.card_bank = card_bank
+            expense.card_last4 = card_last4
+            expense.amount = amount
+            expense.merchant = merchant
+            expense.txn_date = date_obj
+            expense.category = category
+            expense.billing_month = billing_month
+            expense.status = status
+
+            db.session.commit()
+            flash("Credit card expense saved successfully", "success")
+            return redirect(url_for('cc_expenses_list'))
+
+        return render_template("cc_expense_form.html", expense=expense)
+
+    @app.route("/credit-card-expenses/<int:expense_id>/delete", methods=["POST"])
+    def cc_expenses_delete(expense_id):
+        expense = CreditCardExpense.query.get_or_404(expense_id)
+        db.session.delete(expense)
+        db.session.commit()
+        flash("Credit card expense deleted", "info")
+        return redirect(url_for('cc_expenses_list'))
+
+    @app.route("/credit-card-expenses/update-status", methods=["POST"])
+    def cc_expenses_update_status():
+        month = request.form.get("month")
+        card = request.form.get("card")
+        new_status = request.form.get("status")
+        
+        if month and new_status:
+            query = CreditCardExpense.query.filter_by(billing_month=month)
+            if card:
+                query = query.filter(CreditCardExpense.card_bank.ilike(f"%{card}%"))
+            
+            updated = query.update({"status": new_status})
+            db.session.commit()
+            flash(f"Updated status to {new_status} for {updated} rows", "success")
+            
+        return redirect(url_for('cc_expenses_list', month=month, card=card))
 
     @app.route("/expenses")
     def expenses_list():

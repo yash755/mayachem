@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Credit Card Expenses{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="bi bi-credit-card me-2 text-primary"></i> Credit Card Expenses</h3>
+    <a href="{{ url_for('cc_expenses_form') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Add CC Expense
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-4">
+        <form method="get" class="row g-3">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-credit-card-2-front text-muted"></i></span>
+                    <input type="text" name="card" class="form-control border-start-0" placeholder="Filter by Card Bank (e.g. HDFC)" value="{{ card_filter or '' }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <input type="month" name="month" class="form-control" value="{{ month_filter or '' }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{{ url_for('cc_expenses_list') }}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if month_filter %}
+<div class="card border-0 shadow-sm rounded-3 mb-4 bg-light">
+    <div class="card-body p-3 d-flex justify-content-between align-items-center">
+        <div>
+            <strong>Update Status for {{ month_filter }}</strong>
+            {% if card_filter %} (Card: {{ card_filter }}) {% endif %}
+        </div>
+        <form method="post" action="{{ url_for('cc_expenses_update_status') }}" class="d-flex gap-2 align-items-center m-0">
+            <input type="hidden" name="month" value="{{ month_filter }}">
+            <input type="hidden" name="card" value="{{ card_filter or '' }}">
+            <select name="status" class="form-select form-select-sm" style="width: 150px;">
+                <option value="unbilled">Unbilled</option>
+                <option value="billed">Billed</option>
+                <option value="paid">Paid</option>
+            </select>
+            <button type="submit" class="btn btn-sm btn-success">Update</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold">CC Transactions</h5>
+        <h5 class="mb-0 text-primary fw-bold">Total: ₹ {{ "%.2f"|format(total) }}</h5>
+    </div>
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4">Date</th>
+                    <th>Card</th>
+                    <th>Merchant / Cat</th>
+                    <th>Billing Month</th>
+                    <th>Status</th>
+                    <th class="text-end">Amount</th>
+                    <th class="text-end pe-4">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in expenses %}
+                <tr>
+                    <td class="ps-4 text-muted">{{ e.txn_date }}</td>
+                    <td><span class="badge bg-secondary">{{ e.card_bank }} xx{{ e.card_last4 }}</span></td>
+                    <td>
+                        <div><strong>{{ e.merchant or 'Unknown' }}</strong></div>
+                        <div class="small text-muted">{{ e.category }}</div>
+                    </td>
+                    <td>{{ e.billing_month }}</td>
+                    <td>
+                        {% if e.status == 'unbilled' %}
+                        <span class="badge bg-warning text-dark border">Unbilled</span>
+                        {% elif e.status == 'billed' %}
+                        <span class="badge bg-info text-dark border">Billed</span>
+                        {% else %}
+                        <span class="badge bg-success border">Paid</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end fw-bold">₹ {{ "%.2f"|format(e.amount) }}</td>
+                    <td class="text-end pe-4">
+                        <div class="btn-group">
+                            <a href="{{ url_for('cc_expenses_form', expense_id=e.id) }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="post" action="{{ url_for('cc_expenses_delete', expense_id=e.id) }}" style="display: inline;" onsubmit="return confirm('Delete this CC expense?');">
+                                <button class="btn btn-sm btn-outline-danger ms-1">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center py-5 text-muted">No CC expenses found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MOBILE VIEW -->
+    <div class="d-block d-md-none">
+        {% for e in expenses %}
+        <div class="card border-0 shadow-sm mb-3 rounded-3">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="badge bg-secondary">{{ e.card_bank }} xx{{ e.card_last4 }}</span>
+                        <div class="text-muted small mt-1">{{ e.txn_date }}</div>
+                    </div>
+                    <div class="fw-bold text-dark">₹ {{ "%.2f"|format(e.amount) }}</div>
+                </div>
+                <div class="mb-2">
+                    <strong>{{ e.merchant or 'Unknown' }}</strong>
+                    <div class="small text-muted">{{ e.category }}</div>
+                </div>
+                <div class="mb-3 d-flex justify-content-between">
+                    <span class="small text-muted">Month: {{ e.billing_month }}</span>
+                    <span>
+                        {% if e.status == 'unbilled' %}
+                        <span class="badge bg-warning text-dark border">Unbilled</span>
+                        {% elif e.status == 'billed' %}
+                        <span class="badge bg-info text-dark border">Billed</span>
+                        {% else %}
+                        <span class="badge bg-success border">Paid</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-end gap-2 border-top pt-2">
+                    <a href="{{ url_for('cc_expenses_form', expense_id=e.id) }}" class="btn btn-sm btn-outline-secondary px-3">
+                        <i class="bi bi-pencil me-1"></i> Edit
+                    </a>
+                    <form method="post" action="{{ url_for('cc_expenses_delete', expense_id=e.id) }}" onsubmit="return confirm('Delete this CC expense?');">
+                        <button class="btn btn-sm btn-outline-danger px-3">
+                            <i class="bi bi-trash me-1"></i> Delete
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">No CC expenses found.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
