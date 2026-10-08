@@ -74,6 +74,10 @@
             <label class="form-label">Notes (Optional)</label>
             <input type="text" class="form-control" name="notes">
           </div>
+          <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="addToExpense" name="add_to_expense" checked>
+            <label class="form-check-label" for="addToExpense">Also add to Expenses</label>
+          </div>
           <button type="submit" class="btn btn-danger w-100">Add Used</button>
         </form>
       </div>
@@ -113,6 +117,14 @@
               {{ item.client_name }}
             {% else %}
               {{ item.category }}
+              {% if item.expense_id %}
+              <div class="mt-1 d-flex align-items-center gap-1">
+                  <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem;"><i class="bi bi-check2-circle"></i> Copied to Exp.</span>
+                  <form method="post" action="{{ url_for('cash_ledger_uncopy', item_id=item.id) }}" style="display:inline;" onsubmit="return confirm('Remove this from main Expenses?');">
+                      <button class="btn btn-sm text-danger p-0 ms-1 border-0 bg-transparent" title="Undo Copy"><i class="bi bi-x-circle-fill"></i></button>
+                  </form>
+              </div>
+              {% endif %}
             {% endif %}
           </td>
           <td>{{ item.notes }}</td>

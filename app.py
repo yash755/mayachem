@@ -110,6 +110,8 @@ class CashLedger(db.Model):
     category = db.Column(db.String(160), nullable=True)
     amount = db.Column(db.Float, nullable=False)
     notes = db.Column(db.Text, nullable=True)
+    expense_id = db.Column(db.Integer, db.ForeignKey('expense.id'), nullable=True)
+    expense = db.relationship("Expense", backref="cash_ledger_source")
 
 class ExpenseCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -4445,11 +4447,36 @@ def register_cli(app: Flask) -> None:
         if transaction_type == "Received":
             new_entry.client_name = request.form.get("client_name")
         else:
-            new_entry.category = request.form.get("category")
+            category = request.form.get("category")
+            new_entry.category = category
             
+            if request.form.get("add_to_expense") == "on":
+                e = Expense(
+                    date=entry_date,
+                    category=category,
+                    description=f"Cash: {notes or 'Cash Usage'}",
+                    amount=amount,
+                    mode="Cash"
+                )
+                db.session.add(e)
+                db.session.flush()
+                new_entry.expense_id = e.id
+
         db.session.add(new_entry)
         db.session.commit()
         flash("Cash transaction added successfully.", "success")
+        return redirect(url_for("cash_ledger"))
+
+    @app.route("/cash-ledger/uncopy/<int:item_id>", methods=["POST"])
+    def cash_ledger_uncopy(item_id):
+        item = CashLedger.query.get_or_404(item_id)
+        if item.expense_id:
+            e = Expense.query.get(item.expense_id)
+            if e:
+                db.session.delete(e)
+            item.expense_id = None
+            db.session.commit()
+            flash("Unlinked cash transaction from Expenses", "success")
         return redirect(url_for("cash_ledger"))
 
     @app.route("/cash-ledger/delete/<int:item_id>", methods=["POST"])
