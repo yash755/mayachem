@@ -44,10 +44,9 @@
                             <label class="form-label text-muted small fw-bold">Category</label>
                             <select name="category" class="form-select">
                                 <option value="Uncategorized" {% if expense and expense.category == 'Uncategorized' %}selected{% endif %}>Uncategorized</option>
-                                <option value="Food / Tea" {% if expense and expense.category == 'Food / Tea' %}selected{% endif %}>Food / Tea</option>
-                                <option value="Travel / Fuel" {% if expense and expense.category == 'Travel / Fuel' %}selected{% endif %}>Travel / Fuel</option>
-                                <option value="Software / Services" {% if expense and expense.category == 'Software / Services' %}selected{% endif %}>Software / Services</option>
-                                <option value="Miscellaneous" {% if expense and expense.category == 'Miscellaneous' %}selected{% endif %}>Miscellaneous</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.name }}" {% if expense and expense.category == cat.name %}selected{% endif %}>{{ cat.name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         
@@ -63,6 +62,11 @@
                                 <option value="billed" {% if expense and expense.status == 'billed' %}selected{% endif %}>Billed</option>
                                 <option value="paid" {% if expense and expense.status == 'paid' %}selected{% endif %}>Paid</option>
                             </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold">Raw SMS (Optional)</label>
+                            <textarea name="raw_sms" class="form-control" rows="3" placeholder="Original SMS text...">{{ expense.raw_sms if expense and expense.raw_sms else '' }}</textarea>
                         </div>
 
                     </div>

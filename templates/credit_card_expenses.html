@@ -52,6 +52,18 @@
 </div>
 {% endif %}
 
+<form id="bulkCopyForm" method="post" action="{{ url_for('cc_expenses_bulk_copy') }}" class="mb-3 d-flex gap-2 align-items-center">
+    <strong>Bulk Copy to Expense:</strong>
+    <select name="target_category" class="form-select form-select-sm" style="width: 200px;" required>
+        <option value="">Select Category...</option>
+        {% for cat in categories %}
+        <option value="{{ cat.name }}">{{ cat.name }}</option>
+        {% endfor %}
+        <option value="Uncategorized">Uncategorized</option>
+    </select>
+    <button type="submit" class="btn btn-sm btn-primary">Copy Selected</button>
+</form>
+
 <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
     <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
         <h5 class="mb-0 fw-bold">CC Transactions</h5>
@@ -61,7 +73,10 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="bg-light">
                 <tr>
-                    <th class="ps-4">Date</th>
+                    <th class="ps-4" style="width: 40px;">
+                        <input class="form-check-input" type="checkbox" id="selectAll">
+                    </th>
+                    <th>Date</th>
                     <th>Card</th>
                     <th>Merchant / Cat</th>
                     <th>Billing Month</th>
@@ -73,11 +88,27 @@
             <tbody>
                 {% for e in expenses %}
                 <tr>
-                    <td class="ps-4 text-muted">{{ e.txn_date }}</td>
+                    <td class="ps-4">
+                        {% if not e.expense_id %}
+                        <input class="form-check-input row-checkbox" type="checkbox" name="cc_expense_ids" value="{{ e.id }}" form="bulkCopyForm">
+                        {% endif %}
+                    </td>
+                    <td class="text-muted">{{ e.txn_date }}</td>
                     <td><span class="badge bg-secondary">{{ e.card_bank }} xx{{ e.card_last4 }}</span></td>
                     <td>
                         <div><strong>{{ e.merchant or 'Unknown' }}</strong></div>
                         <div class="small text-muted">{{ e.category }}</div>
+                        {% if e.raw_sms %}
+                        <div class="small text-muted fst-italic mt-1" style="font-size: 0.75rem;"><i class="bi bi-chat-left-text me-1"></i>{{ e.raw_sms }}</div>
+                        {% endif %}
+                        {% if e.expense_id %}
+                        <div class="mt-1 d-flex align-items-center gap-1">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem;"><i class="bi bi-check2-circle"></i> Copied</span>
+                            <form method="post" action="{{ url_for('cc_expenses_uncopy', expense_id=e.id) }}" style="display:inline;" onsubmit="return confirm('Remove this from main Expenses?');">
+                                <button class="btn btn-sm text-danger p-0 ms-1 border-0 bg-transparent" title="Undo Copy"><i class="bi bi-x-circle-fill"></i></button>
+                            </form>
+                        </div>
+                        {% endif %}
                     </td>
                     <td>{{ e.billing_month }}</td>
                     <td>
@@ -118,15 +149,31 @@
         <div class="card border-0 shadow-sm mb-3 rounded-3">
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <span class="badge bg-secondary">{{ e.card_bank }} xx{{ e.card_last4 }}</span>
-                        <div class="text-muted small mt-1">{{ e.txn_date }}</div>
+                    <div class="d-flex align-items-center gap-2">
+                        {% if not e.expense_id %}
+                        <input class="form-check-input row-checkbox" type="checkbox" name="cc_expense_ids" value="{{ e.id }}" form="bulkCopyForm">
+                        {% endif %}
+                        <div>
+                            <span class="badge bg-secondary">{{ e.card_bank }} xx{{ e.card_last4 }}</span>
+                            <div class="text-muted small mt-1">{{ e.txn_date }}</div>
+                        </div>
                     </div>
                     <div class="fw-bold text-dark">₹ {{ "%.2f"|format(e.amount) }}</div>
                 </div>
                 <div class="mb-2">
                     <strong>{{ e.merchant or 'Unknown' }}</strong>
                     <div class="small text-muted">{{ e.category }}</div>
+                    {% if e.raw_sms %}
+                    <div class="small text-muted fst-italic mt-1" style="font-size: 0.75rem;"><i class="bi bi-chat-left-text me-1"></i>{{ e.raw_sms }}</div>
+                    {% endif %}
+                    {% if e.expense_id %}
+                    <div class="mt-1 d-flex align-items-center gap-1">
+                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem;"><i class="bi bi-check2-circle"></i> Copied</span>
+                        <form method="post" action="{{ url_for('cc_expenses_uncopy', expense_id=e.id) }}" style="display:inline;" onsubmit="return confirm('Remove this from main Expenses?');">
+                            <button class="btn btn-sm text-danger p-0 ms-1 border-0 bg-transparent" title="Undo Copy"><i class="bi bi-x-circle-fill"></i></button>
+                        </form>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="mb-3 d-flex justify-content-between">
                     <span class="small text-muted">Month: {{ e.billing_month }}</span>
@@ -157,4 +204,18 @@
         {% endfor %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const selectAll = document.getElementById('selectAll');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            for (let checkbox of checkboxes) {
+                checkbox.checked = this.checked;
+            }
+        });
+    }
+</script>
 {% endblock %}

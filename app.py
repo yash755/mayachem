@@ -245,6 +245,8 @@ class CreditCardExpense(db.Model):
     notes = db.Column(db.String(500))
     raw_sms = db.Column(db.Text)
     source = db.Column(db.String(20), default="sms") # sms / manual
+    expense_id = db.Column(db.Integer, db.ForeignKey('expense.id'), nullable=True)
+    expense = db.relationship("Expense", backref="credit_card_source")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -3886,8 +3888,9 @@ def register_routes(app: Flask) -> None:
 
         expenses = query.order_by(CreditCardExpense.txn_date.desc()).all()
         total = sum(e.amount for e in expenses)
+        categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
 
-        return render_template("credit_card_expenses.html", expenses=expenses, total=total, card_filter=card_filter, month_filter=month_filter)
+        return render_template("credit_card_expenses.html", expenses=expenses, total=total, card_filter=card_filter, month_filter=month_filter, categories=categories)
 
     @app.route("/credit-card-expenses/new", methods=["GET", "POST"])
     @app.route("/credit-card-expenses/<int:expense_id>/edit", methods=["GET", "POST"])
@@ -3905,6 +3908,7 @@ def register_routes(app: Flask) -> None:
             category = request.form.get("category", "Uncategorized")
             billing_month = request.form.get("billing_month")
             status = request.form.get("status", "unbilled")
+            raw_sms = request.form.get("raw_sms")
 
             try:
                 date_obj = datetime.strptime(txn_date, "%Y-%m-%d").date()
@@ -3923,12 +3927,14 @@ def register_routes(app: Flask) -> None:
             expense.category = category
             expense.billing_month = billing_month
             expense.status = status
+            expense.raw_sms = raw_sms
 
             db.session.commit()
             flash("Credit card expense saved successfully", "success")
             return redirect(url_for('cc_expenses_list'))
 
-        return render_template("cc_expense_form.html", expense=expense)
+        categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
+        return render_template("cc_expense_form.html", expense=expense, categories=categories)
 
     @app.route("/credit-card-expenses/<int:expense_id>/delete", methods=["POST"])
     def cc_expenses_delete(expense_id):
@@ -3954,6 +3960,48 @@ def register_routes(app: Flask) -> None:
             flash(f"Updated status to {new_status} for {updated} rows", "success")
             
         return redirect(url_for('cc_expenses_list', month=month, card=card))
+
+    @app.route("/credit-card-expenses/bulk-copy", methods=["POST"])
+    def cc_expenses_bulk_copy():
+        expense_ids = request.form.getlist("cc_expense_ids")
+        category = request.form.get("target_category")
+
+        if not expense_ids or not category:
+            flash("Please select at least one transaction and a category.", "warning")
+            return redirect(url_for('cc_expenses_list'))
+
+        count = 0
+        for eid in expense_ids:
+            cc_exp = CreditCardExpense.query.get(int(eid))
+            if cc_exp and not cc_exp.expense_id:
+                # Create Expense
+                e = Expense(
+                    date=cc_exp.txn_date,
+                    category=category,
+                    description=f"CC: {cc_exp.merchant} ({cc_exp.card_bank} x{cc_exp.card_last4})",
+                    amount=cc_exp.amount,
+                    mode="CC"
+                )
+                db.session.add(e)
+                db.session.flush() # get e.id
+                cc_exp.expense_id = e.id
+                count += 1
+        
+        db.session.commit()
+        flash(f"Successfully copied {count} CC transactions to Expenses under category '{category}'", "success")
+        return redirect(url_for('cc_expenses_list'))
+
+    @app.route("/credit-card-expenses/<int:expense_id>/uncopy", methods=["POST"])
+    def cc_expenses_uncopy(expense_id):
+        cc_exp = CreditCardExpense.query.get_or_404(expense_id)
+        if cc_exp.expense_id:
+            e = Expense.query.get(cc_exp.expense_id)
+            if e:
+                db.session.delete(e)
+            cc_exp.expense_id = None
+            db.session.commit()
+            flash("Unlinked transaction from Expenses", "success")
+        return redirect(url_for('cc_expenses_list'))
 
     @app.route("/expenses")
     def expenses_list():
