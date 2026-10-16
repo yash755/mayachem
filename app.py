@@ -974,6 +974,20 @@ def register_routes(app: Flask) -> None:
         total_sale_pending = round(sum(s.balance_due() for s in sales), 2)
         total_purchase_pending = round(sum(p.balance_due() for p in purchases), 2)
 
+        stock_value = round(sum(p.current_stock_kg * p.valuation_rate for p in Product.query.all()), 2)
+        
+        bank_balance_setting = AppSetting.query.filter_by(key="bank_balance").first()
+        bank_balance = float(bank_balance_setting.value) if bank_balance_setting and bank_balance_setting.value else 0.0
+
+        cash_received = db.session.query(func.sum(CashLedger.amount)).filter(CashLedger.transaction_type == "Received").scalar() or 0.0
+        cash_used = db.session.query(func.sum(CashLedger.amount)).filter(CashLedger.transaction_type == "Used").scalar() or 0.0
+        cash_in_hand = round(cash_received - cash_used, 2)
+
+        not_given_expenses = Expense.query.filter_by(is_given=False).order_by(Expense.date.desc(), Expense.id.desc()).all()
+        not_yet_given_total = round(sum(e.amount for e in not_given_expenses), 2)
+
+        net_working_capital = round(total_sale_pending + stock_value + bank_balance + cash_in_hand - total_purchase_pending - not_yet_given_total, 2)
+
         # ✅ Standardized Accounting (Sales - (Cost + Freight + Expense))
         total_sales_base = round(total_sp_sql, 2)
         total_cost_base = round(total_cp_sql, 2)
@@ -1088,6 +1102,13 @@ def register_routes(app: Flask) -> None:
             total_sp=total_sales_base,
             total_profit=total_net_profit,
             total_freight=round(total_freight, 2),
+
+            stock_value=stock_value,
+            bank_balance=bank_balance,
+            cash_in_hand=cash_in_hand,
+            not_yet_given_total=not_yet_given_total,
+            not_given_expenses_count=len(not_given_expenses),
+            net_working_capital=net_working_capital,
 
             latest=latest,
             monthly=monthly,
