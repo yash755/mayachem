@@ -21,8 +21,8 @@ def upgrade():
                 continue
                 
             try:
-                cursor.execute('ALTER TABLE expense ADD COLUMN is_given BOOLEAN DEFAULT 1 NOT NULL;')
-                print(f"[{db_path}] Added column 'is_given' with default 1 (True).")
+                cursor.execute('ALTER TABLE expense ADD COLUMN is_given BOOLEAN DEFAULT 0 NOT NULL;')
+                print(f"[{db_path}] Added column 'is_given' with default 0 (False).")
             except sqlite3.OperationalError as e:
                 print(f"[{db_path}] Column check: {e}")
             

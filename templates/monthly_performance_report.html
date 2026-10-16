@@ -36,11 +36,6 @@
         <a class="btn btn-sm btn-link text-muted p-0" href="{{ url_for('cash_ledger') }}" title="Go to Cash Ledger"><i class="bi bi-box-arrow-up-right"></i></a>
       </div>
       <h4 class="text-info mb-0">₹ {{ "{:,.2f}".format(cash_in_hand) }}</h4>
-      {% if not_yet_given_total > 0 %}
-      <div class="small text-muted mt-1" style="font-size: 0.72rem;" title="Cash Ledger: ₹ {{ '{:,.2f}'.format(cash_in_hand_raw) }} - Not Given: ₹ {{ '{:,.2f}'.format(not_yet_given_total) }}">
-        Ledger: ₹ {{ "{:,.0f}".format(cash_in_hand_raw) }} <span class="text-danger">- {{ "{:,.0f}".format(not_yet_given_total) }}</span>
-      </div>
-      {% endif %}
     </div>
   </div>
   <div class="col-md">
@@ -69,7 +64,7 @@
         Net Working Capital
         <i class="bi bi-info-circle-fill ms-1" style="font-size: 0.8rem; cursor: help;" 
            data-bs-toggle="tooltip" 
-           data-bs-title="Receivables + Stock + Bank Balance + Cash in Hand (Net of Not Yet Given) - Payables"></i>
+           data-bs-title="Receivables + Stock + Bank Balance + Cash in Hand - Payables - Not Yet Given Expense"></i>
       </h6>
       <h4 class="mb-0">₹ {{ "{:,.2f}".format(net_position) }}</h4>
     </div>

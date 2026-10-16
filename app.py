@@ -72,7 +72,8 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
         
         # Ensure is_given column exists on expense table (for production migrations)
         try:
-            db.session.execute(text("ALTER TABLE expense ADD COLUMN is_given BOOLEAN DEFAULT 1 NOT NULL;"))
+            db.session.execute(text("ALTER TABLE expense ADD COLUMN is_given BOOLEAN DEFAULT 0 NOT NULL;"))
+            db.session.execute(text("UPDATE expense SET is_given = 1;"))
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -229,7 +230,7 @@ class Expense(db.Model):
     amount = db.Column(db.Float, nullable=False)
 
     mode = db.Column(db.String(50))   # Cash / Bank / UPI
-    is_given = db.Column(db.Boolean, default=True, nullable=False, server_default='1')
+    is_given = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
 
     created_at = db.Column(
         db.DateTime,
@@ -3407,13 +3408,12 @@ def register_routes(app: Flask) -> None:
 
         cash_received = db.session.query(func.sum(CashLedger.amount)).filter(CashLedger.transaction_type == "Received").scalar() or 0.0
         cash_used = db.session.query(func.sum(CashLedger.amount)).filter(CashLedger.transaction_type == "Used").scalar() or 0.0
-        cash_in_hand_raw = round(cash_received - cash_used, 2)
+        cash_in_hand = round(cash_received - cash_used, 2)
         
         not_given_expenses = Expense.query.filter_by(is_given=False).order_by(Expense.date.desc(), Expense.id.desc()).all()
         not_yet_given_total = round(sum(e.amount for e in not_given_expenses), 2)
-        cash_in_hand = round(cash_in_hand_raw - not_yet_given_total, 2)
 
-        net_position = round(total_receivable + stock_value + bank_balance + cash_in_hand - total_payable, 2)
+        net_position = round(total_receivable + stock_value + bank_balance + cash_in_hand - total_payable - not_yet_given_total, 2)
 
         return render_template(
             "monthly_performance_report.html",
@@ -3423,7 +3423,6 @@ def register_routes(app: Flask) -> None:
             total_payable=total_payable,
             stock_value=stock_value,
             bank_balance=bank_balance,
-            cash_in_hand_raw=cash_in_hand_raw,
             cash_in_hand=cash_in_hand,
             not_yet_given_total=not_yet_given_total,
             not_given_expenses=not_given_expenses,
@@ -3941,7 +3940,8 @@ def register_routes(app: Flask) -> None:
                 category="Uncategorized",
                 description=f"SMS: {raw_sms[:50]}...",
                 amount=amount,
-                mode="Bank"
+                mode="Bank",
+                is_given=False
             )
             db.session.add(e)
             db.session.commit()
@@ -4059,7 +4059,8 @@ def register_routes(app: Flask) -> None:
                     category=category,
                     description=f"CC: {cc_exp.merchant} ({cc_exp.card_bank} x{cc_exp.card_last4})",
                     amount=cc_exp.amount,
-                    mode="CC"
+                    mode="CC",
+                    is_given=False
                 )
                 db.session.add(e)
                 db.session.flush() # get e.id
@@ -4382,7 +4383,8 @@ def register_cli(app: Flask) -> None:
                 description=f"EMI/Repayment: {loan.loan_name or loan.party_name} {notes or ''}".strip(),
                 amount=amount,
                 mode=mode,
-                loan_id=loan_id
+                loan_id=loan_id,
+                is_given=False
             )
             db.session.add(expense)
             
@@ -4552,7 +4554,8 @@ def register_cli(app: Flask) -> None:
                     category=category,
                     description=f"Cash: {notes or 'Cash Usage'}",
                     amount=amount,
-                    mode="Cash"
+                    mode="Cash",
+                    is_given=False
                 )
                 db.session.add(e)
                 db.session.flush()
