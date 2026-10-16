@@ -36,6 +36,25 @@
         <a class="btn btn-sm btn-link text-muted p-0" href="{{ url_for('cash_ledger') }}" title="Go to Cash Ledger"><i class="bi bi-box-arrow-up-right"></i></a>
       </div>
       <h4 class="text-info mb-0">₹ {{ "{:,.2f}".format(cash_in_hand) }}</h4>
+      {% if not_yet_given_total > 0 %}
+      <div class="small text-muted mt-1" style="font-size: 0.72rem;" title="Cash Ledger: ₹ {{ '{:,.2f}'.format(cash_in_hand_raw) }} - Not Given: ₹ {{ '{:,.2f}'.format(not_yet_given_total) }}">
+        Ledger: ₹ {{ "{:,.0f}".format(cash_in_hand_raw) }} <span class="text-danger">- {{ "{:,.0f}".format(not_yet_given_total) }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-md">
+    <div class="card p-3 shadow-sm border-0 h-100" style="border-left: 4px solid #fd7e14 !important;">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 class="text-muted small mb-1">Not Yet Given Exp.</h6>
+        <a href="{{ url_for('expenses_form') }}" class="btn btn-sm btn-link text-muted p-0" title="Add Expense"><i class="bi bi-plus-circle"></i></a>
+      </div>
+      <h4 class="mb-0" style="color: #fd7e14;">₹ {{ "{:,.2f}".format(not_yet_given_total) }}</h4>
+      <div class="small text-muted mt-1" style="font-size: 0.75rem;">
+        <a href="{{ url_for('expenses_list', given='0') }}" class="text-decoration-none text-muted">
+          {{ not_given_expenses|length }} pending <i class="bi bi-arrow-right-short"></i>
+        </a>
+      </div>
     </div>
   </div>
   <div class="col-md">
@@ -50,7 +69,7 @@
         Net Working Capital
         <i class="bi bi-info-circle-fill ms-1" style="font-size: 0.8rem; cursor: help;" 
            data-bs-toggle="tooltip" 
-           data-bs-title="Receivables + Stock + Bank Balance + Cash in Hand - Payables"></i>
+           data-bs-title="Receivables + Stock + Bank Balance + Cash in Hand (Net of Not Yet Given) - Payables"></i>
       </h6>
       <h4 class="mb-0">₹ {{ "{:,.2f}".format(net_position) }}</h4>
     </div>
@@ -80,6 +99,8 @@
     </form>
   </div>
 </div>
+
+
 
 
 

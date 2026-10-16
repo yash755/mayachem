@@ -20,6 +20,7 @@
           <label class="form-label">Sale Type</label>
           <select name="sale_type" id="sale_type" class="form-select">
             <option value="bill" {% if sale_type=='bill' %}selected{% endif %}>Bill</option>
+            <option value="black_bill" {% if sale_type=='black_bill' %}selected{% endif %}>Black Bill</option>
             <option value="cash" {% if sale_type=='cash' %}selected{% endif %}>Cash (bottles)</option>
           </select>
         </div>
@@ -111,7 +112,7 @@
                 </tr>
               </thead>
               <tbody id="items-body-bill">
-                {% if sale and sale.items and sale_type == 'bill' %}
+                {% if sale and sale.items and sale_type in ['bill', 'black_bill'] %}
                 {% for item in sale.items %}
                 <tr class="item-row">
                   <td data-label="Product">

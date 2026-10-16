@@ -70,6 +70,13 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
     with app.app_context():
         db.create_all()
         
+        # Ensure is_given column exists on expense table (for production migrations)
+        try:
+            db.session.execute(text("ALTER TABLE expense ADD COLUMN is_given BOOLEAN DEFAULT 1 NOT NULL;"))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        
         # Seed ExpenseCategory if empty
         if ExpenseCategory.query.count() == 0:
             for cat_name in EXPENSE_CATEGORIES:
@@ -222,6 +229,7 @@ class Expense(db.Model):
     amount = db.Column(db.Float, nullable=False)
 
     mode = db.Column(db.String(50))   # Cash / Bank / UPI
+    is_given = db.Column(db.Boolean, default=True, nullable=False, server_default='1')
 
     created_at = db.Column(
         db.DateTime,
@@ -276,6 +284,8 @@ class SaleItem(db.Model):
     cost_rate_per_kg = db.Column(db.Float, nullable=False, default=0.0)
     selling_rate_per_kg = db.Column(db.Float, nullable=True, default=0.0)
     gst_percent = db.Column(db.Float, nullable=False, default=0.0, server_default="0.0")
+    product = db.relationship("Product", foreign_keys=[product_id], lazy="joined")
+    bottle_type = db.relationship("BottleType", foreign_keys=[bottle_type_id], lazy="joined")
 
     def __repr__(self) -> str:
         prod_info = f" product={self.product_id}" if self.product_id else ""
@@ -3256,6 +3266,65 @@ def register_routes(app: Flask) -> None:
         products = Product.query.all()
         return render_template("stock_report.html", products=products)
 
+    @app.route("/reports/black-bill")
+    def black_bill_report():
+        # Fetch all sales with black_bill type
+        black_sales = Sale.query.filter_by(sale_type="black_bill").order_by(Sale.date.desc(), Sale.id.desc()).all()
+
+        # Aggregate total quantities and amounts per product
+        from collections import defaultdict
+        product_map = {}
+        for p in Product.query.all():
+            product_map[p.id] = p
+
+        product_aggr = defaultdict(lambda: {"total_qty": 0.0, "total_amount": 0.0, "sale_count": 0, "product_id": None, "current_stock": None, "product_name": ""})
+
+        overall_total_qty = 0.0
+        overall_total_amount = 0.0
+
+        for sale in black_sales:
+            for item in sale.items:
+                p_id = item.product_id
+                qty = item.quantity_kg or 0.0
+                rate = item.selling_rate_per_kg or 0.0
+                amt = qty * rate
+
+                if p_id and p_id in product_map:
+                    p = product_map[p_id]
+                    key = f"prod_{p_id}"
+                    product_aggr[key]["product_id"] = p.id
+                    product_aggr[key]["product_name"] = p.name
+                    product_aggr[key]["current_stock"] = p.current_stock_kg
+                elif item.bottle_type_id:
+                    bt = BottleType.query.get(item.bottle_type_id)
+                    key = f"bt_{item.bottle_type_id}"
+                    product_aggr[key]["product_id"] = None
+                    product_aggr[key]["product_name"] = bt.label if bt else f"Bottle #{item.bottle_type_id}"
+                    product_aggr[key]["current_stock"] = None
+                else:
+                    key = "unlinked"
+                    product_aggr[key]["product_id"] = None
+                    product_aggr[key]["product_name"] = "Other / Unlinked"
+                    product_aggr[key]["current_stock"] = None
+
+                product_aggr[key]["total_qty"] += qty
+                product_aggr[key]["total_amount"] += amt
+                product_aggr[key]["sale_count"] += 1
+
+                overall_total_qty += qty
+                overall_total_amount += amt
+
+        # Sort products by total quantity descending
+        product_summaries = sorted(product_aggr.values(), key=lambda x: x["total_qty"], reverse=True)
+
+        return render_template(
+            "black_bill_report.html",
+            product_summaries=product_summaries,
+            recent_sales=black_sales,
+            overall_total_qty=round(overall_total_qty, 2),
+            overall_total_amount=round(overall_total_amount, 2)
+        )
+
     @app.route("/reports/monthly-performance")
     def monthly_performance_report():
         monthly_raw = db.session.execute(
@@ -3338,9 +3407,14 @@ def register_routes(app: Flask) -> None:
 
         cash_received = db.session.query(func.sum(CashLedger.amount)).filter(CashLedger.transaction_type == "Received").scalar() or 0.0
         cash_used = db.session.query(func.sum(CashLedger.amount)).filter(CashLedger.transaction_type == "Used").scalar() or 0.0
-        cash_in_hand = round(cash_received - cash_used, 2)
+        cash_in_hand_raw = round(cash_received - cash_used, 2)
         
+        not_given_expenses = Expense.query.filter_by(is_given=False).order_by(Expense.date.desc(), Expense.id.desc()).all()
+        not_yet_given_total = round(sum(e.amount for e in not_given_expenses), 2)
+        cash_in_hand = round(cash_in_hand_raw - not_yet_given_total, 2)
+
         net_position = round(total_receivable + stock_value + bank_balance + cash_in_hand - total_payable, 2)
+
         return render_template(
             "monthly_performance_report.html",
             monthly=monthly,
@@ -3349,7 +3423,10 @@ def register_routes(app: Flask) -> None:
             total_payable=total_payable,
             stock_value=stock_value,
             bank_balance=bank_balance,
+            cash_in_hand_raw=cash_in_hand_raw,
             cash_in_hand=cash_in_hand,
+            not_yet_given_total=not_yet_given_total,
+            not_given_expenses=not_given_expenses,
             net_position=net_position
         )
 
@@ -4011,6 +4088,7 @@ def register_routes(app: Flask) -> None:
         q = (request.args.get("q") or "").strip()
         category_filter = request.args.get("category")
         month_filter = request.args.get("month")
+        given_filter = request.args.get("given")
 
         query = Expense.query
 
@@ -4025,6 +4103,11 @@ def register_routes(app: Flask) -> None:
         if month_filter:
             query = query.filter(db.func.strftime('%Y-%m', Expense.date) == month_filter)
 
+        if given_filter == "0":
+            query = query.filter(Expense.is_given == False)
+        elif given_filter == "1":
+            query = query.filter(Expense.is_given == True)
+
         expenses = query.order_by(
             Expense.date.desc(),
             Expense.id.desc()
@@ -4038,7 +4121,8 @@ def register_routes(app: Flask) -> None:
             total=round(total,2),
             q=q,
             category_filter=category_filter,
-            month_filter=month_filter
+            month_filter=month_filter,
+            given_filter=given_filter
         )
 
 
@@ -4064,6 +4148,7 @@ def register_routes(app: Flask) -> None:
                 employee_id = int(employee_id_raw) if employee_id_raw else None
                 loan_id_raw = request.form.get("loan_id")
                 loan_id = int(loan_id_raw) if loan_id_raw else None
+                is_given = (request.form.get("is_given") == "on")
                 
                 is_new = not expense
 
@@ -4075,7 +4160,8 @@ def register_routes(app: Flask) -> None:
                         amount=amount,
                         mode=mode,
                         employee_id=employee_id,
-                        loan_id=loan_id
+                        loan_id=loan_id,
+                        is_given=is_given
                     )
                     db.session.add(expense)
                 else:
@@ -4086,6 +4172,7 @@ def register_routes(app: Flask) -> None:
                     expense.mode = mode
                     expense.employee_id = employee_id
                     expense.loan_id = loan_id
+                    expense.is_given = is_given
                 
                 db.session.flush()
 
@@ -4122,6 +4209,15 @@ def register_routes(app: Flask) -> None:
         flash("Expense deleted", "info")
 
         return redirect(url_for("expenses_list"))
+
+    @app.route("/expenses/<int:expense_id>/toggle-given", methods=["POST"])
+    def expense_toggle_given(expense_id):
+        expense = Expense.query.get_or_404(expense_id)
+        expense.is_given = not expense.is_given
+        commit_or_rollback()
+        status_text = "marked as Given" if expense.is_given else "marked as Not Yet Given"
+        flash(f"Expense '{expense.description or expense.category}' (₹{expense.amount:,.2f}) {status_text}.", "success")
+        return redirect(request.referrer or url_for('monthly_performance_report'))
 
 
 # -----------------------------------------------------------------------------

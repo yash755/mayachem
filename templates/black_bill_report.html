@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}Black Bill Stock Report{% endblock %}
+
+{% block content %}
+<div class="container-fluid text-dark">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h3 class="fw-bold mb-1">
+                <i class="bi bi-file-earmark-diff text-dark me-2"></i>Black Bill Set-Off Report
+            </h3>
+            <p class="text-muted mb-0 small">
+                Track products sold under <strong>Black Bill</strong> to know exact quantities and amounts pending to be set off or regularized.
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('sales_form') }}" class="btn btn-outline-dark">
+                <i class="bi bi-plus-lg me-1"></i> New Sale
+            </a>
+            <a href="{{ url_for('stock_report') }}" class="btn btn-outline-primary">
+                <i class="bi bi-stack me-1"></i> Stock Ledger
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Total Qty to Set-Off</span>
+                            <h3 class="fw-bold text-dark mt-2 mb-0">{{ "%.1f"|format(overall_total_qty) }} <small class="text-muted fs-6">kg</small></h3>
+                        </div>
+                        <div class="bg-dark text-white rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="bi bi-box-seam fs-5"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Total Sales Value</span>
+                            <h3 class="fw-bold text-primary mt-2 mb-0">₹ {{ "%.0f"|format(overall_total_amount) }}</h3>
+                        </div>
+                        <div class="bg-primary text-white rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="bi bi-cash-stack fs-5"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Products Affected</span>
+                            <h3 class="fw-bold text-secondary mt-2 mb-0">{{ product_summaries|length }}</h3>
+                        </div>
+                        <div class="bg-secondary text-white rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="bi bi-tags fs-5"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Black Bill Sales</span>
+                            <h3 class="fw-bold text-warning-emphasis mt-2 mb-0">{{ recent_sales|length }}</h3>
+                        </div>
+                        <div class="bg-warning text-dark rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="bi bi-receipt fs-5"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product-wise Quantity Breakdown -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
+        <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-dark">
+                <i class="bi bi-pie-chart text-dark me-2"></i>Product-wise Set-Off Summary
+            </h5>
+            <span class="badge bg-dark rounded-pill px-3 py-2">
+                {{ product_summaries|length }} Products
+            </span>
+        </div>
+        <div class="card-body p-0">
+            {% if product_summaries %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Product Name</th>
+                            <th class="text-end">Black Bill Qty to Set-Off</th>
+                            <th class="text-end">Current Stock (in Hand)</th>
+                            <th class="text-end">Total Amount</th>
+                            <th class="text-center">Entries</th>
+                            <th class="text-end pe-4">Stock Ledger</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in product_summaries %}
+                        <tr>
+                            <td class="ps-4 fw-bold">
+                                {% if item.product_id %}
+                                <a href="{{ url_for('product_stock_ledger', id=item.product_id) }}" class="text-decoration-none text-dark">
+                                    <i class="bi bi-box-seam text-secondary me-1"></i> {{ item.product_name }}
+                                </a>
+                                {% else %}
+                                <span class="text-muted"><i class="bi bi-question-circle me-1"></i> {{ item.product_name }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fs-5 fw-bold text-danger">
+                                {{ "%.1f"|format(item.total_qty) }} <small class="text-muted fs-6">kg</small>
+                            </td>
+                            <td class="text-end fw-semibold">
+                                {% if item.current_stock is not none %}
+                                    <span class="{% if item.current_stock <= 0 %}text-danger{% else %}text-success{% endif %}">
+                                        {{ "%.1f"|format(item.current_stock) }} kg
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-bold text-primary">
+                                ₹ {{ "%.0f"|format(item.total_amount) }}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3">
+                                    {{ item.sale_count }} sale{% if item.sale_count > 1 %}s{% endif %}
+                                </span>
+                            </td>
+                            <td class="text-end pe-4">
+                                {% if item.product_id %}
+                                <a href="{{ url_for('product_stock_ledger', id=item.product_id) }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    <i class="bi bi-journal-text me-1"></i> Ledger
+                                </a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="bg-light fw-bold">
+                        <tr>
+                            <td class="ps-4 text-dark">Total</td>
+                            <td class="text-end text-danger fs-5">{{ "%.1f"|format(overall_total_qty) }} kg</td>
+                            <td class="text-end text-muted">-</td>
+                            <td class="text-end text-primary fs-5">₹ {{ "%.0f"|format(overall_total_amount) }}</td>
+                            <td class="text-center">{{ recent_sales|length }} sales</td>
+                            <td class="pe-4"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-check-circle-fill text-success fs-1 d-block mb-3"></i>
+                <h5>No Black Bill Sales Found</h5>
+                <p class="mb-0">There are currently no sales recorded with the "Black Bill" type.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Detailed Transactions Log -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-dark">
+                <i class="bi bi-list-check text-dark me-2"></i>Black Bill Transactions
+            </h5>
+            <span class="text-muted small">All recorded black bill sales</span>
+        </div>
+        <div class="card-body p-0">
+            {% if recent_sales %}
+            <!-- Desktop Table View -->
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Date</th>
+                            <th>Client</th>
+                            <th>Items & Breakdown</th>
+                            <th class="text-end">Total Qty</th>
+                            <th class="text-end">Settlement Amount</th>
+                            <th class="text-end pe-4">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in recent_sales %}
+                        <tr>
+                            <td class="ps-4 text-nowrap">{{ s.date.strftime("%d-%m-%Y") }}</td>
+                            <td class="fw-bold">
+                                <a href="{{ url_for('party_ledger', party_type='client', name=s.client_name) }}" class="text-decoration-none text-dark">
+                                    {{ s.client_name }}
+                                </a>
+                                <span class="badge bg-dark ms-1" style="font-size: 0.65rem;">Black Bill</span>
+                            </td>
+                            <td>
+                                <ul class="list-unstyled mb-0 small">
+                                    {% for it in s.items %}
+                                    <li class="py-1">
+                                        <i class="bi bi-dot text-primary"></i>
+                                        <strong>{{ it.product.name if it.product else (it.bottle_type.label if it.bottle_type else 'Unspecified') }}</strong>:
+                                        {{ "%.1f"|format(it.quantity_kg) }} kg @ ₹{{ "%.2f"|format(it.selling_rate_per_kg or 0) }}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </td>
+                            <td class="text-end fw-bold text-dark">{{ "%.1f"|format(s.total_qty) }} <small class="text-muted">kg</small></td>
+                            <td class="text-end fw-bold text-primary">₹ {{ "%.0f"|format(s.total_amount()) }}</td>
+                            <td class="text-end pe-4 text-nowrap">
+                                <a href="{{ url_for('sales_form', sale_id=s.id) }}" class="btn btn-sm btn-outline-warning rounded-pill px-3 me-1">
+                                    <i class="bi bi-pencil me-1"></i> Edit
+                                </a>
+                                <a href="{{ url_for('sale_payments_detail', sale_id=s.id) }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    <i class="bi bi-wallet2 me-1"></i> Payments
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Card View -->
+            <div class="d-md-none p-3">
+                {% for s in recent_sales %}
+                <div class="card mb-3 border-0 shadow-sm rounded-4 bg-light">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="fw-bold mb-0 text-dark">
+                                    <a href="{{ url_for('party_ledger', party_type='client', name=s.client_name) }}" class="text-decoration-none text-dark">
+                                        {{ s.client_name }}
+                                    </a>
+                                    <span class="badge bg-dark ms-1" style="font-size: 0.65rem;">Black Bill</span>
+                                </h6>
+                                <small class="text-muted"><i class="bi bi-calendar3 me-1"></i> {{ s.date.strftime("%d %b, %Y") }}</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold text-primary fs-5">₹{{ "%.0f"|format(s.total_amount()) }}</div>
+                                <small class="text-muted fw-bold">{{ "%.1f"|format(s.total_qty) }} kg</small>
+                            </div>
+                        </div>
+
+                        <div class="border-top pt-2 mt-2">
+                            <div class="small fw-semibold text-secondary mb-1">Items:</div>
+                            <ul class="list-unstyled mb-0 small text-muted">
+                                {% for it in s.items %}
+                                <li>
+                                    • {{ it.product.name if it.product else (it.bottle_type.label if it.bottle_type else 'Item') }}:
+                                    {{ "%.1f"|format(it.quantity_kg) }} kg
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+
+                        <div class="d-flex border-top pt-3 mt-3 gap-2">
+                            <a href="{{ url_for('sales_form', sale_id=s.id) }}" class="btn btn-white border flex-grow-1 rounded-3">
+                                <i class="bi bi-pencil me-1"></i> Edit
+                            </a>
+                            <a href="{{ url_for('sale_payments_detail', sale_id=s.id) }}" class="btn btn-primary flex-grow-1 rounded-3">
+                                <i class="bi bi-wallet2 me-1"></i> Pay
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">No black bill sales recorded yet.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -5,7 +5,12 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h3>Sales</h3>
-  <a class="btn btn-success" href="{{ url_for('sales_form') }}">+ Add</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-dark" href="{{ url_for('black_bill_report') }}">
+      <i class="bi bi-file-earmark-diff me-1"></i> Black Bill Set-Off
+    </a>
+    <a class="btn btn-success" href="{{ url_for('sales_form') }}">+ Add</a>
+  </div>
 </div>
 
 <form class="row g-2 mb-4 align-items-center" method="get" action="{{ url_for('sales_list') }}">
@@ -55,6 +60,9 @@
           <a href="{{ url_for('party_ledger', party_type='client', name=s.client_name) }}" class="text-decoration-none" title="View Ledger">
             {{ s.client_name }}
           </a>
+          {% if s.sale_type == 'black_bill' %}
+          <span class="badge bg-dark ms-1" style="font-size: 0.7rem;">Black Bill</span>
+          {% endif %}
         </td>
         <td class="text-end text-muted">{{ "%.0f"|format(s.total_qty) }} <small>kg</small></td>
         <td class="text-end fw-bold text-primary">₹ {{ "%.0f"|format(s.total_amount()) }}</td>
@@ -94,6 +102,9 @@
             <a href="{{ url_for('party_ledger', party_type='client', name=s.client_name) }}" class="text-decoration-none">
               {{ s.client_name }}
             </a>
+            {% if s.sale_type == 'black_bill' %}
+            <span class="badge bg-dark ms-1" style="font-size: 0.65rem;">Black Bill</span>
+            {% endif %}
           </h6>
           <small class="text-muted"><i class="bi bi-calendar3 me-1"></i> {{ s.date.strftime("%d %b, %Y") }}</small>
         </div>
