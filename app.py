@@ -77,6 +77,19 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+        # Ensure cash_ledger migration columns exist
+        try:
+            db.session.execute(text("ALTER TABLE cash_ledger ADD COLUMN expense_id INTEGER REFERENCES expense(id);"))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        try:
+            db.session.execute(text("ALTER TABLE cash_ledger ADD COLUMN employee_id INTEGER REFERENCES employee(id);"))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         
         # Seed ExpenseCategory if empty
         if ExpenseCategory.query.count() == 0:
@@ -116,6 +129,8 @@ class CashLedger(db.Model):
     transaction_type = db.Column(db.String(16), nullable=False) # 'Received' or 'Used'
     client_name = db.Column(db.String(160), nullable=True) 
     category = db.Column(db.String(160), nullable=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=True)
+    employee = db.relationship("Employee", backref="cash_ledgers")
     amount = db.Column(db.Float, nullable=False)
     notes = db.Column(db.Text, nullable=True)
     expense_id = db.Column(db.Integer, db.ForeignKey('expense.id'), nullable=True)
@@ -4542,11 +4557,24 @@ def register_cli(app: Flask) -> None:
     @app.route("/cash-ledger")
     def cash_ledger():
         items = CashLedger.query.order_by(CashLedger.date.desc(), CashLedger.id.desc()).all()
-        running_balance = sum(item.amount if item.transaction_type == 'Received' else -item.amount for item in items)
+        total_received = sum(item.amount for item in items if item.transaction_type == 'Received')
+        total_used = sum(item.amount for item in items if item.transaction_type == 'Used')
+        running_balance = total_received - total_used
         clients = Client.query.filter_by(is_active=True).order_by(Client.name).all()
         categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
+        employees = Employee.query.order_by(Employee.name).all()
         today = datetime.now().strftime("%Y-%m-%d")
-        return render_template("cash_ledger.html", ledger_items=items, running_balance=running_balance, clients=clients, categories=categories, today=today)
+        return render_template(
+            "cash_ledger.html",
+            ledger_items=items,
+            running_balance=running_balance,
+            total_received=total_received,
+            total_used=total_used,
+            clients=clients,
+            categories=categories,
+            employees=employees,
+            today=today
+        )
 
     @app.route("/cash-ledger/add", methods=["POST"])
     def cash_ledger_add():
@@ -4568,15 +4596,19 @@ def register_cli(app: Flask) -> None:
         else:
             category = request.form.get("category")
             new_entry.category = category
+            employee_id_raw = request.form.get("employee_id")
+            new_entry.employee_id = int(employee_id_raw) if employee_id_raw else None
             
             if request.form.get("add_to_expense") == "on":
+                desc = f"Cash: {notes or 'Cash Usage'}"
                 e = Expense(
                     date=entry_date,
                     category=category,
-                    description=f"Cash: {notes or 'Cash Usage'}",
+                    description=desc,
                     amount=amount,
                     mode="Cash",
-                    is_given=False
+                    employee_id=new_entry.employee_id,
+                    is_given=True  # Cash added from here to expense is auto marked as paid
                 )
                 db.session.add(e)
                 db.session.flush()
@@ -4585,6 +4617,31 @@ def register_cli(app: Flask) -> None:
         db.session.add(new_entry)
         db.session.commit()
         flash("Cash transaction added successfully.", "success")
+        return redirect(url_for("cash_ledger"))
+
+    @app.route("/cash-ledger/copy/<int:item_id>", methods=["POST"])
+    def cash_ledger_copy(item_id):
+        item = CashLedger.query.get_or_404(item_id)
+        if item.transaction_type == "Used":
+            # Check if linked expense already exists
+            existing_expense = Expense.query.get(item.expense_id) if item.expense_id else None
+            if not existing_expense:
+                e = Expense(
+                    date=item.date,
+                    category=item.category or "Miscellaneous",
+                    description=f"Cash: {item.notes or 'Cash Usage'}",
+                    amount=item.amount,
+                    mode="Cash",
+                    employee_id=item.employee_id,
+                    is_given=True  # Auto marked as paid/given
+                )
+                db.session.add(e)
+                db.session.flush()
+                item.expense_id = e.id
+                db.session.commit()
+                flash("Copied cash transaction to Expenses (marked as Paid).", "success")
+            else:
+                flash("This transaction is already copied to Expenses.", "info")
         return redirect(url_for("cash_ledger"))
 
     @app.route("/cash-ledger/uncopy/<int:item_id>", methods=["POST"])
@@ -4596,12 +4653,16 @@ def register_cli(app: Flask) -> None:
                 db.session.delete(e)
             item.expense_id = None
             db.session.commit()
-            flash("Unlinked cash transaction from Expenses", "success")
+            flash("Removed cash transaction from Expenses.", "success")
         return redirect(url_for("cash_ledger"))
 
     @app.route("/cash-ledger/delete/<int:item_id>", methods=["POST"])
     def cash_ledger_delete(item_id):
         item = CashLedger.query.get_or_404(item_id)
+        if item.expense_id:
+            e = Expense.query.get(item.expense_id)
+            if e:
+                db.session.delete(e)
         db.session.delete(item)
         db.session.commit()
         flash("Cash transaction deleted.", "info")
@@ -4623,8 +4684,22 @@ def register_cli(app: Flask) -> None:
         
         if item.transaction_type == "Received":
             item.client_name = request.form.get("client_name")
+            item.category = None
+            item.employee_id = None
         else:
             item.category = request.form.get("category")
+            employee_id_raw = request.form.get("employee_id")
+            item.employee_id = int(employee_id_raw) if employee_id_raw else None
+            
+            # Sync with linked Expense if it exists
+            if item.expense_id:
+                e = Expense.query.get(item.expense_id)
+                if e:
+                    e.date = item.date
+                    e.category = item.category
+                    e.amount = item.amount
+                    e.employee_id = item.employee_id
+                    e.description = f"Cash: {item.notes or 'Cash Usage'}"
             
         db.session.commit()
         flash("Cash transaction updated.", "success")
