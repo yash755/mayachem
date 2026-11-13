@@ -4280,6 +4280,10 @@ def register_routes(app: Flask) -> None:
         ).all()
 
         total = sum(e.amount for e in expenses)
+        employees = Employee.query.order_by(Employee.name).all()
+        categories = [c.name for c in ExpenseCategory.query.order_by(ExpenseCategory.name).all()]
+        active_loans = Loan.query.filter_by(is_closed=False).all()
+        today = date.today().isoformat()
 
         return render_template(
             "expenses_list.html",
@@ -4288,7 +4292,11 @@ def register_routes(app: Flask) -> None:
             q=q,
             category_filter=category_filter,
             month_filter=month_filter,
-            given_filter=given_filter
+            given_filter=given_filter,
+            employees=employees,
+            categories=categories,
+            active_loans=active_loans,
+            today=today
         )
 
 
@@ -4302,6 +4310,9 @@ def register_routes(app: Flask) -> None:
         employees = Employee.query.order_by(Employee.name).all()
         categories = [c.name for c in ExpenseCategory.query.order_by(ExpenseCategory.name).all()]
         active_loans = Loan.query.filter_by(is_closed=False).all()
+
+        if request.method == "GET" and not expense_id:
+            return redirect(url_for("expenses_list", add=1))
 
         if request.method == "POST":
             try:
