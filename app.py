@@ -2780,6 +2780,139 @@ def register_routes(app: Flask) -> None:
             client_report=client_report
         )
 
+    @app.route("/reports/payments-flow")
+    def payments_flow_report():
+        from collections import defaultdict
+
+        raw_month = request.args.get("month")
+        if raw_month is None:
+            month_filter = datetime.now().strftime("%Y-%m")
+        elif raw_month == "all" or raw_month.strip() == "":
+            month_filter = ""
+        else:
+            month_filter = raw_month.strip()
+
+        party_q = (request.args.get("q") or "").strip().lower()
+
+        received_list = []
+        sent_list = []
+
+        # 1. SalePayments (not linked to a bulk ClientCollection)
+        sale_payments = db.session.query(SalePayment, Sale).join(Sale, SalePayment.sale_id == Sale.id).filter(SalePayment.collection_id.is_(None)).all()
+        for sp, sale in sale_payments:
+            if month_filter and sp.date.strftime("%Y-%m") != month_filter:
+                continue
+            if party_q and party_q not in (sale.client_name or "").lower():
+                continue
+            received_list.append({
+                "date": sp.date,
+                "party": sale.client_name,
+                "party_type": "client",
+                "amount": round(sp.amount or 0.0, 2),
+                "mode": sp.mode or "—",
+                "notes": sp.notes or "",
+                "ref_text": f"Sale #{sale.id}",
+                "ref_url": url_for("sale_payments_detail", sale_id=sale.id)
+            })
+
+        # 2. ClientCollections (bulk / direct client receipts)
+        client_collections = db.session.query(ClientCollection, Client).join(Client, ClientCollection.client_id == Client.id).all()
+        for cc, client in client_collections:
+            if month_filter and cc.date.strftime("%Y-%m") != month_filter:
+                continue
+            if party_q and party_q not in (client.name or "").lower():
+                continue
+            inv_ids = [str(p.sale_id) for p in cc.payments]
+            ref_txt = f"Bulk Collection #{cc.id}" + (f" (Inv: {', '.join(inv_ids)})" if inv_ids else "")
+            received_list.append({
+                "date": cc.date,
+                "party": client.name,
+                "party_type": "client",
+                "amount": round(cc.amount or 0.0, 2),
+                "mode": cc.mode or "—",
+                "notes": cc.notes or "",
+                "ref_text": ref_txt,
+                "ref_url": url_for("edit_client_collection", collection_id=cc.id)
+            })
+
+        # 3. PurchasePayments (not linked to a bulk VendorCollection)
+        purchase_payments = db.session.query(PurchasePayment, Purchase).join(Purchase, PurchasePayment.purchase_id == Purchase.id).filter(PurchasePayment.collection_id.is_(None)).all()
+        for pp, pur in purchase_payments:
+            if month_filter and pp.date.strftime("%Y-%m") != month_filter:
+                continue
+            if party_q and party_q not in (pur.vendor_name or "").lower():
+                continue
+            sent_list.append({
+                "date": pp.date,
+                "party": pur.vendor_name,
+                "party_type": "vendor",
+                "amount": round(pp.amount or 0.0, 2),
+                "mode": pp.mode or "—",
+                "notes": pp.notes or "",
+                "ref_text": f"Purchase #{pur.id}",
+                "ref_url": url_for("purchase_payments", purchase_id=pur.id)
+            })
+
+        # 4. VendorCollections (bulk / direct vendor payments)
+        vendor_collections = VendorCollection.query.all()
+        for vc in vendor_collections:
+            if month_filter and vc.date.strftime("%Y-%m") != month_filter:
+                continue
+            if party_q and party_q not in (vc.vendor_name or "").lower():
+                continue
+            inv_ids = [str(p.purchase_id) for p in vc.payments]
+            ref_txt = f"Bulk Payment #{vc.id}" + (f" (Inv: {', '.join(inv_ids)})" if inv_ids else "")
+            sent_list.append({
+                "date": vc.date,
+                "party": vc.vendor_name,
+                "party_type": "vendor",
+                "amount": round(vc.amount or 0.0, 2),
+                "mode": vc.mode or "—",
+                "notes": vc.notes or "",
+                "ref_text": ref_txt,
+                "ref_url": url_for("edit_vendor_collection", collection_id=vc.id)
+            })
+
+        received_list.sort(key=lambda x: x["date"], reverse=True)
+        sent_list.sort(key=lambda x: x["date"], reverse=True)
+
+        total_received = round(sum(r["amount"] for r in received_list), 2)
+        total_sent = round(sum(s["amount"] for s in sent_list), 2)
+        net_flow = round(total_received - total_sent, 2)
+
+        # Party-wise summary
+        party_map = defaultdict(lambda: {"received": 0.0, "sent": 0.0, "party_type": "client"})
+        for r in received_list:
+            party_map[r["party"]]["received"] = round(party_map[r["party"]]["received"] + r["amount"], 2)
+            party_map[r["party"]]["party_type"] = "client"
+        for s in sent_list:
+            party_map[s["party"]]["sent"] = round(party_map[s["party"]]["sent"] + s["amount"], 2)
+            if party_map[s["party"]]["received"] == 0:
+                party_map[s["party"]]["party_type"] = "vendor"
+
+        party_summary = []
+        for p_name, vals in party_map.items():
+            party_summary.append({
+                "party": p_name,
+                "party_type": vals["party_type"],
+                "received": vals["received"],
+                "sent": vals["sent"],
+                "net": round(vals["received"] - vals["sent"], 2)
+            })
+        party_summary.sort(key=lambda x: (x["received"] + x["sent"]), reverse=True)
+
+        return render_template(
+            "payments_flow_report.html",
+            received_list=received_list,
+            sent_list=sent_list,
+            party_summary=party_summary,
+            total_received=total_received,
+            total_sent=total_sent,
+            net_flow=net_flow,
+            month_filter=month_filter,
+            party_q=request.args.get("q") or ""
+        )
+
     @app.route("/reports/profitability")
     def party_profitability():
         sales = Sale.query.all()

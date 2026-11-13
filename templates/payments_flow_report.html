@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% block title %}Payments Received & Sent Report{% endblock %}
+
+{% block content %}
+<style>
+.flow-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.85rem;
+    margin-bottom: 1.25rem;
+}
+@media (max-width: 767px) {
+    .flow-summary-grid {
+        grid-template-columns: 1fr;
+        gap: 0.6rem;
+    }
+}
+.flow-mobile-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-left: 4px solid #198754;
+    border-radius: 10px;
+    padding: 0.8rem 0.95rem;
+    margin-bottom: 0.65rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.flow-mobile-card.sent {
+    border-left-color: #dc3545;
+}
+.flow-mobile-card.party {
+    border-left-color: #0d6efd;
+}
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+        <h3 class="mb-0 fw-bold"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Payments Received & Sent</h3>
+        <small class="text-muted">Track client payments received and vendor/party payments sent</small>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary d-print-none" onclick="window.print()">
+        <i class="bi bi-printer me-1"></i> Print
+    </button>
+</div>
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm rounded-3 mb-4 d-print-none">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small text-muted mb-1 fw-semibold">Month</label>
+                <input type="month" name="month" class="form-control form-control-sm" value="{{ month_filter }}">
+            </div>
+            <div class="col-12 col-sm-6 col-md-4">
+                <label class="form-label small text-muted mb-1 fw-semibold">Party / Client Name</label>
+                <input type="text" name="q" class="form-control form-control-sm" placeholder="Search client or vendor..." value="{{ party_q }}">
+            </div>
+            <div class="col-12 col-md-5 d-flex gap-2 align-items-end mt-2 mt-md-4">
+                <button type="submit" class="btn btn-sm btn-primary px-3 fw-semibold">
+                    <i class="bi bi-funnel me-1"></i> Filter
+                </button>
+                <a href="{{ url_for('payments_flow_report', month='all') }}" class="btn btn-sm btn-outline-secondary px-3">
+                    All Months
+                </a>
+                <a href="{{ url_for('payments_flow_report') }}" class="btn btn-sm btn-outline-danger px-3">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Metrics -->
+<div class="flow-summary-grid">
+    <div class="card border-0 shadow-sm rounded-3" style="border-top: 4px solid #198754 !important;">
+        <div class="card-body py-3">
+            <span class="text-muted small d-block mb-1">Total Received (from Clients)</span>
+            <h4 class="mb-0 fw-bold text-success">+ ₹{{ "{:,.2f}".format(total_received) }}</h4>
+            <small class="text-muted">{{ received_list|length }} payment(s) received</small>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-3" style="border-top: 4px solid #dc3545 !important;">
+        <div class="card-body py-3">
+            <span class="text-muted small d-block mb-1">Total Sent (to Parties / Vendors)</span>
+            <h4 class="mb-0 fw-bold text-danger">- ₹{{ "{:,.2f}".format(total_sent) }}</h4>
+            <small class="text-muted">{{ sent_list|length }} payment(s) sent</small>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-3" style="border-top: 4px solid #0d6efd !important;">
+        <div class="card-body py-3">
+            <span class="text-muted small d-block mb-1">Net Payment Flow {% if month_filter %}({{ month_filter }}){% else %}(All Time){% endif %}</span>
+            <h4 class="mb-0 fw-bold {% if net_flow >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                {% if net_flow >= 0 %}+{% endif %} ₹{{ "{:,.2f}".format(net_flow) }}
+            </h4>
+            <small class="text-muted">Received minus Sent</small>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-tabs mb-3 d-print-none" id="flowTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-bold text-success" id="received-tab" data-bs-toggle="tab" data-bs-target="#received-pane" type="button" role="tab">
+            <i class="bi bi-arrow-down-left-circle me-1"></i> Received ({{ received_list|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-bold text-danger" id="sent-tab" data-bs-toggle="tab" data-bs-target="#sent-pane" type="button" role="tab">
+            <i class="bi bi-arrow-up-right-circle me-1"></i> Sent ({{ sent_list|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-bold text-primary" id="party-tab" data-bs-toggle="tab" data-bs-target="#party-pane" type="button" role="tab">
+            <i class="bi bi-people me-1"></i> Party Summary ({{ party_summary|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="flowTabsContent">
+    <!-- ========================================== -->
+    <!-- TAB 1: RECEIVED PAYMENTS                   -->
+    <!-- ========================================== -->
+    <div class="tab-pane fade show active" id="received-pane" role="tabpanel">
+        <!-- Desktop Table -->
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Date</th>
+                            <th>Client Name</th>
+                            <th>Reference</th>
+                            <th>Mode</th>
+                            <th>Notes</th>
+                            <th class="text-end pe-4">Amount Received</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in received_list %}
+                        <tr>
+                            <td class="ps-4 text-muted">{{ item.date.strftime('%d %b %Y') }}</td>
+                            <td class="fw-semibold">
+                                <a href="{{ url_for('party_ledger', party_type='client', name=item.party) }}" class="text-decoration-none text-dark">
+                                    {{ item.party }}
+                                </a>
+                            </td>
+                            <td>
+                                <a href="{{ item.ref_url }}" class="badge bg-light text-primary border text-decoration-none">
+                                    {{ item.ref_text }}
+                                </a>
+                            </td>
+                            <td><span class="badge bg-secondary-subtle text-secondary">{{ item.mode }}</span></td>
+                            <td class="text-muted small">{{ item.notes or '—' }}</td>
+                            <td class="text-end pe-4 fw-bold text-success">+ ₹{{ "{:,.2f}".format(item.amount) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">No received payments found for this period.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="d-block d-md-none">
+            {% for item in received_list %}
+            <div class="flow-mobile-card">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <a href="{{ url_for('party_ledger', party_type='client', name=item.party) }}" class="fw-bold text-dark text-decoration-none">
+                            {{ item.party }}
+                        </a>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            {{ item.date.strftime('%d %b %Y') }} · <span class="badge bg-light text-dark border">{{ item.mode }}</span>
+                        </div>
+                    </div>
+                    <div class="fw-bold text-success text-nowrap">+ ₹{{ "{:,.2f}".format(item.amount) }}</div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small">
+                    <span class="text-muted text-truncate me-2">{{ item.notes or item.ref_text }}</span>
+                    <a href="{{ item.ref_url }}" class="text-primary text-decoration-none text-nowrap">
+                        View <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <div class="card border-0 shadow-sm rounded-3 text-center py-4 text-muted">No received payments found.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: SENT PAYMENTS                       -->
+    <!-- ========================================== -->
+    <div class="tab-pane fade" id="sent-pane" role="tabpanel">
+        <!-- Desktop Table -->
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Date</th>
+                            <th>Party / Vendor Name</th>
+                            <th>Reference</th>
+                            <th>Mode</th>
+                            <th>Notes</th>
+                            <th class="text-end pe-4">Amount Sent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in sent_list %}
+                        <tr>
+                            <td class="ps-4 text-muted">{{ item.date.strftime('%d %b %Y') }}</td>
+                            <td class="fw-semibold">
+                                <a href="{{ url_for('party_ledger', party_type='vendor', name=item.party) }}" class="text-decoration-none text-dark">
+                                    {{ item.party }}
+                                </a>
+                            </td>
+                            <td>
+                                <a href="{{ item.ref_url }}" class="badge bg-light text-danger border text-decoration-none">
+                                    {{ item.ref_text }}
+                                </a>
+                            </td>
+                            <td><span class="badge bg-secondary-subtle text-secondary">{{ item.mode }}</span></td>
+                            <td class="text-muted small">{{ item.notes or '—' }}</td>
+                            <td class="text-end pe-4 fw-bold text-danger">- ₹{{ "{:,.2f}".format(item.amount) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">No sent payments found for this period.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="d-block d-md-none">
+            {% for item in sent_list %}
+            <div class="flow-mobile-card sent">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <a href="{{ url_for('party_ledger', party_type='vendor', name=item.party) }}" class="fw-bold text-dark text-decoration-none">
+                            {{ item.party }}
+                        </a>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            {{ item.date.strftime('%d %b %Y') }} · <span class="badge bg-light text-dark border">{{ item.mode }}</span>
+                        </div>
+                    </div>
+                    <div class="fw-bold text-danger text-nowrap">- ₹{{ "{:,.2f}".format(item.amount) }}</div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small">
+                    <span class="text-muted text-truncate me-2">{{ item.notes or item.ref_text }}</span>
+                    <a href="{{ item.ref_url }}" class="text-danger text-decoration-none text-nowrap">
+                        View <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <div class="card border-0 shadow-sm rounded-3 text-center py-4 text-muted">No sent payments found.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: PARTY SUMMARY                       -->
+    <!-- ========================================== -->
+    <div class="tab-pane fade" id="party-pane" role="tabpanel">
+        <!-- Desktop Table -->
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Party Name</th>
+                            <th class="text-end">Total Received</th>
+                            <th class="text-end">Total Sent</th>
+                            <th class="text-end pe-4">Net Flow</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in party_summary %}
+                        <tr>
+                            <td class="ps-4 fw-semibold">
+                                <a href="{{ url_for('party_ledger', party_type=p.party_type, name=p.party) }}" class="text-decoration-none text-dark">
+                                    {{ p.party }}
+                                </a>
+                            </td>
+                            <td class="text-end text-success fw-semibold">
+                                {% if p.received > 0 %}+ ₹{{ "{:,.2f}".format(p.received) }}{% else %}—{% endif %}
+                            </td>
+                            <td class="text-end text-danger fw-semibold">
+                                {% if p.sent > 0 %}- ₹{{ "{:,.2f}".format(p.sent) }}{% else %}—{% endif %}
+                            </td>
+                            <td class="text-end pe-4 fw-bold {% if p.net >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                                {% if p.net >= 0 %}+{% endif %} ₹{{ "{:,.2f}".format(p.net) }}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">No party payment activity found for this period.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="d-block d-md-none">
+            {% for p in party_summary %}
+            <div class="flow-mobile-card party">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <a href="{{ url_for('party_ledger', party_type=p.party_type, name=p.party) }}" class="fw-bold text-dark text-decoration-none">
+                        {{ p.party }}
+                    </a>
+                    <span class="fw-bold {% if p.net >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                        Net: {% if p.net >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(p.net) }}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between small text-muted border-top pt-2">
+                    <span>Received: <strong class="text-success">₹{{ "{:,.2f}".format(p.received) }}</strong></span>
+                    <span>Sent: <strong class="text-danger">₹{{ "{:,.2f}".format(p.sent) }}</strong></span>
+                </div>
+            </div>
+            {% else %}
+            <div class="card border-0 shadow-sm rounded-3 text-center py-4 text-muted">No party payment activity found.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
