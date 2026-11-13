@@ -109,6 +109,16 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
                     db.session.add(batch)
             db.session.commit()
 
+        # Re-open any loans that were prematurely auto-closed while still having an outstanding balance
+        premature_closed = Loan.query.filter_by(is_closed=True).all()
+        reopened_any = False
+        for l in premature_closed:
+            if l.outstanding() > 0:
+                l.is_closed = False
+                reopened_any = True
+        if reopened_any:
+            db.session.commit()
+
     register_routes(app)
     register_cli(app)
 
@@ -4335,6 +4345,10 @@ def register_routes(app: Flask) -> None:
                 if is_new and category == "Loan" and loan_id:
                     rep = LoanRepayment(loan_id=loan_id, date=date, amount=amount, mode=mode, notes=description)
                     db.session.add(rep)
+                    db.session.flush()
+                    loan_obj = Loan.query.get(loan_id)
+                    if loan_obj and loan_obj.total_repaid() >= loan_obj.total_due():
+                        loan_obj.is_closed = True
 
                 commit_or_rollback()
 
@@ -4543,8 +4557,9 @@ def register_cli(app: Flask) -> None:
             )
             db.session.add(expense)
             
-        # Auto-close if fully repaid
-        if loan.total_repaid() + amount >= loan.total_due():
+        # Auto-close if fully repaid (flush first so loan.repayments includes rep without double-counting)
+        db.session.flush()
+        if loan.total_repaid() >= loan.total_due():
             loan.is_closed = True
         commit_or_rollback()
         flash(f"Repayment of ₹{amount:,.2f} recorded.", "success")
@@ -4588,6 +4603,14 @@ def register_cli(app: Flask) -> None:
         loan.is_closed = True
         commit_or_rollback()
         flash("Loan marked as closed.", "success")
+        return redirect(url_for("loan_detail", loan_id=loan_id))
+
+    @app.route("/loans/<int:loan_id>/reopen", methods=["POST"])
+    def loan_reopen(loan_id):
+        loan = Loan.query.get_or_404(loan_id)
+        loan.is_closed = False
+        commit_or_rollback()
+        flash("Loan reopened.", "success")
         return redirect(url_for("loan_detail", loan_id=loan_id))
 
     @app.route("/loans/<int:loan_id>/delete", methods=["POST"])
