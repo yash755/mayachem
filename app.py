@@ -498,6 +498,19 @@ class ProductBatch(db.Model):
     def __repr__(self) -> str:
         return f"<ProductBatch product={self.product_id} rate={self.rate} qty={self.quantity_kg}>"
 
+class ProductWastage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    quantity_kg = db.Column(db.Float, nullable=False, default=0.0)
+    rate_per_kg = db.Column(db.Float, nullable=False, default=0.0)
+    notes = db.Column(db.String(250), nullable=True)
+
+    product = db.relationship("Product", backref=db.backref("wastages", cascade="all, delete-orphan"))
+
+    def __repr__(self) -> str:
+        return f"<ProductWastage product={self.product_id} date={self.date} qty={self.quantity_kg}kg>"
+
 def adjust_batch_stock(product_id, rate, amount):
     """
     Adjusts the stock of a specific product batch (rate-based).
@@ -3127,6 +3140,64 @@ def register_routes(app: Flask) -> None:
             flash("Invalid batch request", "danger")
         return redirect(url_for("product_stock_ledger", id=id))
 
+    @app.route("/product/<int:id>/wastage/add", methods=["POST"])
+    def add_product_wastage(id):
+        p = Product.query.get_or_404(id)
+        try:
+            date_str = request.form.get("date")
+            wastage_date = _parse_date(date_str) if date_str else date.today()
+            qty_kg = _to_float(request.form.get("quantity_kg"), 0.0)
+            if qty_kg <= 0:
+                raise ValueError("Wastage quantity must be greater than 0 kg")
+
+            rate_str = request.form.get("rate_per_kg")
+            if rate_str is not None and rate_str.strip() != "":
+                rate_val = _to_float(rate_str, 0.0)
+            else:
+                rate_val = p.valuation_rate or 0.0
+
+            notes = (request.form.get("notes") or "").strip() or None
+
+            wastage = ProductWastage(
+                product_id=p.id,
+                date=wastage_date,
+                quantity_kg=round(qty_kg, 2),
+                rate_per_kg=round(rate_val, 4),
+                notes=notes
+            )
+            db.session.add(wastage)
+
+            p.change_stock(-qty_kg)
+            adjust_batch_stock(p.id, rate_val, -qty_kg)
+            sync_product_total_stock(p.id)
+
+            db.session.commit()
+            flash(f"Recorded {qty_kg} kg wastage for {p.name}", "success")
+        except Exception as exc:
+            db.session.rollback()
+            flash(f"Error recording wastage: {exc}", "danger")
+
+        return redirect(url_for("product_stock_ledger", id=id))
+
+    @app.route("/product/<int:id>/wastage/<int:wastage_id>/delete", methods=["POST"])
+    def delete_product_wastage(id, wastage_id):
+        p = Product.query.get_or_404(id)
+        wastage = ProductWastage.query.get_or_404(wastage_id)
+        if wastage.product_id == id:
+            try:
+                p.change_stock(wastage.quantity_kg)
+                adjust_batch_stock(p.id, wastage.rate_per_kg or 0.0, wastage.quantity_kg)
+                db.session.delete(wastage)
+                sync_product_total_stock(p.id)
+                db.session.commit()
+                flash("Wastage entry deleted and stock restored", "info")
+            except Exception as exc:
+                db.session.rollback()
+                flash(f"Error deleting wastage: {exc}", "danger")
+        else:
+            flash("Invalid wastage entry", "danger")
+        return redirect(url_for("product_stock_ledger", id=id))
+
     @app.route("/product/<int:id>/ledger")
     def product_stock_ledger(id):
         p = Product.query.get_or_404(id)
@@ -3135,6 +3206,8 @@ def register_routes(app: Flask) -> None:
         purchases_query = db.session.query(PurchaseItem, Purchase).join(Purchase).filter(PurchaseItem.product_id == id).all()
         # 2. Fetch Sale transactions
         sales_query = db.session.query(SaleItem, Sale).join(Sale).filter(SaleItem.product_id == id).all()
+        # 3. Fetch Wastage transactions
+        wastages_query = ProductWastage.query.filter_by(product_id=id).all()
         
         # Apply Month Filter
         month_filter = request.args.get("month")
@@ -3149,7 +3222,9 @@ def register_routes(app: Flask) -> None:
 
         # Calculate lifetime totals
         lifetime_added = sum(item.quantity_kg or 0.0 for item, purchase in purchases_query)
-        lifetime_reduced = sum(item.quantity_kg or 0.0 for item, sale in sales_query)
+        lifetime_sold = sum(item.quantity_kg or 0.0 for item, sale in sales_query)
+        lifetime_wasted = sum(w.quantity_kg or 0.0 for w in wastages_query)
+        lifetime_reduced = lifetime_sold + lifetime_wasted
         
         current_stock = p.current_stock_kg or 0.0
         lifetime_starting_stock = round(current_stock - lifetime_added + lifetime_reduced, 2)
@@ -3158,6 +3233,7 @@ def register_routes(app: Flask) -> None:
         pre_reduced = 0.0
         month_added = 0.0
         month_reduced = 0.0
+        month_wasted = 0.0
         
         ledger_entries = []
         
@@ -3180,6 +3256,7 @@ def register_routes(app: Flask) -> None:
                 "sp": None,
                 "total_val": round(qty * (item.rate_per_kg or 0.0), 2),
                 "ref_url": url_for("edit_purchase", purchase_id=purchase.id),
+                "delete_url": None,
                 "ref_text": f"Purchase #{purchase.id}"
             })
             
@@ -3202,7 +3279,32 @@ def register_routes(app: Flask) -> None:
                 "sp": item.selling_rate_per_kg or 0.0,
                 "total_val": round(qty * (item.selling_rate_per_kg or 0.0), 2),
                 "ref_url": url_for("sales_form", sale_id=sale.id),
+                "delete_url": None,
                 "ref_text": f"Sale #{sale.id}"
+            })
+
+        for w in wastages_query:
+            qty = w.quantity_kg or 0.0
+            if filter_start:
+                if w.date < filter_start:
+                    pre_reduced += qty
+                    continue
+                elif w.date.year != filter_yr or w.date.month != filter_mo:
+                    continue
+
+            month_wasted += qty
+            month_reduced += qty
+            ledger_entries.append({
+                "date": w.date,
+                "type": "Wastage",
+                "party": w.notes or "Stock Wastage",
+                "qty_change": -qty,
+                "cp": w.rate_per_kg or 0.0,
+                "sp": None,
+                "total_val": round(qty * (w.rate_per_kg or 0.0), 2),
+                "ref_url": None,
+                "delete_url": url_for("delete_product_wastage", id=p.id, wastage_id=w.id),
+                "ref_text": f"Wastage #{w.id}"
             })
             
         # Sort chronologically
@@ -3231,6 +3333,7 @@ def register_routes(app: Flask) -> None:
                 "sp": None,
                 "total_val": round(starting_stock * (p.valuation_rate or 0.0), 2),
                 "ref_url": None,
+                "delete_url": None,
                 "ref_text": "System Baseline",
                 "running_bal": starting_stock
             }
@@ -3266,9 +3369,10 @@ def register_routes(app: Flask) -> None:
                         "party": purchase.vendor_name,
                         "qty_change": item.quantity_kg or 0.0,
                         "ref_url": url_for("edit_purchase", purchase_id=purchase.id),
+                        "delete_url": None,
                         "ref_text": f"Purchase #{purchase.id}"
                     })
-            # Reductions
+            # Reductions (Sales)
             for item, sale in sales_query:
                 if round(item.cost_rate_per_kg or 0.0, 4) == r_val:
                     batch_histories[batch.id].append({
@@ -3277,7 +3381,20 @@ def register_routes(app: Flask) -> None:
                         "party": sale.client_name,
                         "qty_change": -(item.quantity_kg or 0.0),
                         "ref_url": url_for("sales_form", sale_id=sale.id),
+                        "delete_url": None,
                         "ref_text": f"Sale #{sale.id}"
+                    })
+            # Reductions (Wastage)
+            for w in wastages_query:
+                if round(w.rate_per_kg or 0.0, 4) == r_val:
+                    batch_histories[batch.id].append({
+                        "date": w.date,
+                        "type": "Wastage",
+                        "party": w.notes or "Stock Wastage",
+                        "qty_change": -(w.quantity_kg or 0.0),
+                        "ref_url": None,
+                        "delete_url": url_for("delete_product_wastage", id=p.id, wastage_id=w.id),
+                        "ref_text": f"Wastage #{w.id}"
                     })
             # Sort newest transactions first
             batch_histories[batch.id].sort(key=lambda x: x["date"], reverse=True)
@@ -3291,11 +3408,13 @@ def register_routes(app: Flask) -> None:
             ledger_entries=ledger_entries,
             total_added=round(month_added, 2),
             total_reduced=round(month_reduced, 2),
+            total_wasted=round(month_wasted, 2),
             estimated_valuation=estimated_valuation,
             stock_breakdown=breakdown,
             display_stock=display_stock,
             month_filter=month_filter,
-            batch_histories=batch_histories
+            batch_histories=batch_histories,
+            today_str=date.today().isoformat()
         )
 
     @app.route("/reports/stock")

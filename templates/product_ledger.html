@@ -11,7 +11,7 @@
 /* ── Summary cards ── */
 .summary-row { 
   display: grid; 
-  grid-template-columns: repeat(4, 1fr); 
+  grid-template-columns: repeat(5, 1fr); 
   gap: 0.75rem; 
   margin-bottom: 1rem; 
 }
@@ -46,6 +46,7 @@
 }
 .txn-card.purchase { border-left-color: #198754; }
 .txn-card.sale { border-left-color: #dc3545; }
+.txn-card.wastage { border-left-color: #ffc107; }
 .txn-card.adjustment { border-left-color: #0dcaf0; }
 .txn-card .txn-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
 .txn-card .txn-date { font-size: 0.75rem; color: #6c757d; white-space: nowrap; }
@@ -128,6 +129,14 @@
         </div>
     </div>
 
+    <!-- Total Wasted Card -->
+    <div class="card summary-card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+            <span class="label text-muted d-block small mb-1">Total Wasted</span>
+            <h4 class="mb-0 fw-bold text-warning-emphasis">-{{ "%.1f"|format(total_wasted or 0) }} kg</h4>
+        </div>
+    </div>
+
     <!-- Estimated Value Card -->
     <div class="card summary-card border-0 shadow-sm rounded-3">
         <div class="card-body">
@@ -135,6 +144,50 @@
             <h4 class="mb-0 fw-bold text-primary">₹{{ "%.2f"|format(estimated_valuation) }}</h4>
             <span class="text-muted" style="font-size: 0.7rem;">@ ₹{{ "%.2f"|format(product.valuation_rate or 0) }}/kg</span>
         </div>
+    </div>
+</div>
+
+<!-- Record Stock Wastage -->
+<div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4 d-print-none">
+    <div class="card-header bg-white border-0 py-3">
+        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Record Stock Wastage</h5>
+        <p class="text-muted small mb-0">Log wasted, spilled, or damaged quantity to deduct it from stock and track it in the ledger.</p>
+    </div>
+    <div class="card-body pt-0 pb-3 px-4">
+        <form action="{{ url_for('add_product_wastage', id=product.id) }}" method="POST" class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label small fw-semibold text-muted mb-1">Date</label>
+                <input type="date" name="date" class="form-control form-control-sm" value="{{ today_str }}" required>
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <label class="form-label small fw-semibold text-muted mb-1">Wasted Qty (kg)</label>
+                <div class="input-group input-group-sm">
+                    <input type="number" step="0.01" min="0.01" name="quantity_kg" class="form-control" placeholder="e.g. 5.0" required>
+                    <span class="input-group-text">kg</span>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label small fw-semibold text-muted mb-1">Batch Rate (₹/kg)</label>
+                {% if stock_breakdown %}
+                <select name="rate_per_kg" class="form-select form-select-sm">
+                    {% for batch in stock_breakdown %}
+                    <option value="{{ batch.rate }}">₹{{ "%.2f"|format(batch.rate) }}/kg ({{ "%.1f"|format(batch.remaining_qty) }} kg avail)</option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                <input type="number" step="0.01" name="rate_per_kg" class="form-control form-control-sm" value="{{ product.valuation_rate or 0 }}">
+                {% endif %}
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <label class="form-label small fw-semibold text-muted mb-1">Reason / Notes</label>
+                <input type="text" name="notes" class="form-control form-control-sm" placeholder="e.g. Spillage, leakage">
+            </div>
+            <div class="col-12 col-md-2">
+                <button type="submit" class="btn btn-sm btn-warning fw-bold w-100">
+                    <i class="bi bi-plus-circle me-1"></i> Add Wastage
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -206,11 +259,13 @@
                                                 <tbody>
                                                     {% set history = batch_histories.get(batch.id, []) %}
                                                     {% for h_entry in history %}
-                                                    <tr class="{% if h_entry.qty_change > 0 %}table-success-subtle{% else %}table-danger-subtle{% endif %}">
+                                                    <tr class="{% if h_entry.type == 'Purchase' %}table-success-subtle{% elif h_entry.type == 'Wastage' %}table-warning-subtle{% else %}table-danger-subtle{% endif %}">
                                                         <td class="ps-3">{{ h_entry.date.strftime('%d-%b-%Y') }}</td>
                                                         <td>
-                                                            {% if h_entry.qty_change > 0 %}
+                                                            {% if h_entry.type == 'Purchase' %}
                                                             <span class="badge bg-success-subtle text-success py-1"><i class="bi bi-arrow-down-left-circle me-1"></i> Purchase</span>
+                                                            {% elif h_entry.type == 'Wastage' %}
+                                                            <span class="badge bg-warning-subtle text-warning-emphasis py-1"><i class="bi bi-exclamation-triangle me-1"></i> Wastage</span>
                                                             {% else %}
                                                             <span class="badge bg-danger-subtle text-danger py-1"><i class="bi bi-arrow-up-right-circle me-1"></i> Sale</span>
                                                             {% endif %}
@@ -224,9 +279,13 @@
                                                             {% endif %}
                                                         </td>
                                                         <td class="text-end pe-3">
+                                                            {% if h_entry.ref_url %}
                                                             <a href="{{ h_entry.ref_url }}" class="btn btn-xs btn-link p-0 text-decoration-none small">
                                                                 {{ h_entry.ref_text }} <i class="bi bi-box-arrow-up-right small"></i>
                                                             </a>
+                                                            {% else %}
+                                                            <span class="text-muted small">{{ h_entry.ref_text }}</span>
+                                                            {% endif %}
                                                         </td>
                                                     </tr>
                                                     {% else %}
@@ -292,7 +351,7 @@
                 </thead>
                 <tbody>
                     {% for entry in ledger_entries %}
-                    <tr class="{% if entry.type == 'Purchase' %}table-success-subtle{% elif entry.type == 'Sale' %}table-danger-subtle{% endif %}">
+                    <tr class="{% if entry.type == 'Purchase' %}table-success-subtle{% elif entry.type == 'Sale' %}table-danger-subtle{% elif entry.type == 'Wastage' %}table-warning-subtle{% endif %}">
                         <td class="ps-4">
                             {% if entry.date %}
                             {{ entry.date.strftime('%d-%b-%Y') }}
@@ -305,6 +364,8 @@
                             <span class="badge bg-success"><i class="bi bi-arrow-down-left-circle me-1"></i> Purchase</span>
                             {% elif entry.type == 'Sale' %}
                             <span class="badge bg-danger"><i class="bi bi-arrow-up-right-circle me-1"></i> Sale</span>
+                            {% elif entry.type == 'Wastage' %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i> Wastage</span>
                             {% else %}
                             <span class="badge bg-info text-dark"><i class="bi bi-info-circle me-1"></i> Opening / Adj</span>
                             {% endif %}
@@ -354,6 +415,12 @@
                             <a href="{{ entry.ref_url }}" class="btn btn-sm btn-outline-secondary">
                                 <i class="bi bi-pencil-square me-1"></i> Edit Txn
                             </a>
+                            {% elif entry.delete_url %}
+                            <form method="POST" action="{{ entry.delete_url }}" style="display:inline;" onsubmit="return confirm('Delete this wastage entry and restore stock?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash me-1"></i> Delete
+                                </button>
+                            </form>
                             {% else %}
                             <span class="text-muted small">N/A</span>
                             {% endif %}
@@ -374,13 +441,15 @@
         <!-- Mobile view -->
         <div class="ledger-mobile p-3 bg-light">
             {% for entry in ledger_entries %}
-            <div class="txn-card {% if entry.type == 'Purchase' %}purchase{% elif entry.type == 'Sale' %}sale{% else %}adjustment{% endif %}">
+            <div class="txn-card {% if entry.type == 'Purchase' %}purchase{% elif entry.type == 'Sale' %}sale{% elif entry.type == 'Wastage' %}wastage{% else %}adjustment{% endif %}">
                 <div class="txn-top">
                     <div class="txn-desc">
                         {% if entry.type == 'Purchase' %}
                         Purchase: <strong>{{ entry.party }}</strong>
                         {% elif entry.type == 'Sale' %}
                         Sale: <strong>{{ entry.party }}</strong>
+                        {% elif entry.type == 'Wastage' %}
+                        Wastage: <strong>{{ entry.party }}</strong>
                         {% else %}
                         System baseline calibration
                         {% endif %}
@@ -420,6 +489,14 @@
                     <a href="{{ entry.ref_url }}" class="text-secondary text-decoration-none">
                         <i class="bi bi-pencil-square me-1"></i> Edit Transaction
                     </a>
+                </div>
+                {% elif entry.delete_url %}
+                <div class="txn-actions text-end d-print-none border-top pt-2 mt-2">
+                    <form method="POST" action="{{ entry.delete_url }}" style="display:inline;" onsubmit="return confirm('Delete this wastage entry and restore stock?');">
+                        <button type="submit" class="btn btn-link btn-sm text-danger text-decoration-none p-0">
+                            <i class="bi bi-trash me-1"></i> Delete Wastage
+                        </button>
+                    </form>
                 </div>
                 {% endif %}
             </div>
