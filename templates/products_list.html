@@ -2,17 +2,52 @@
 {% block title %}Chemical Products{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3><i class="bi bi-box-seam me-2 text-primary"></i>Chemical Products</h3>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductModal">
+<style>
+.prod-mobile-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-left: 4px solid #198754;
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.prod-mobile-card.low-stock {
+    border-left-color: #dc3545;
+}
+.prod-mobile-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 0.5rem 0.65rem;
+    margin: 0.65rem 0;
+}
+.prod-mobile-metrics .metric-label {
+    font-size: 0.7rem;
+    color: #6c757d;
+    display: block;
+}
+.prod-mobile-metrics .metric-val {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #212529;
+}
+</style>
+
+<div class="container-fluid px-0 px-sm-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 mb-md-4">
+        <h3 class="mb-0 fs-4"><i class="bi bi-box-seam me-2 text-primary"></i>Chemical Products</h3>
+        <button type="button" class="btn btn-primary btn-sm px-3 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#addProductModal">
             <i class="bi bi-plus-lg me-1"></i> Add New Product
         </button>
     </div>
 
-    <div class="row">
-        <div class="col-md-9">
-            <div class="card shadow-sm border-0 rounded-3">
+    <div class="row g-3">
+        <div class="col-lg-9">
+            <!-- Desktop Table View -->
+            <div class="card shadow-sm border-0 rounded-3 d-none d-md-block">
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
@@ -34,17 +69,17 @@
                                     <td class="text-end text-muted">{{ "%.1f"|format(p.min_stock_kg) }} kg</td>
                                     <td class="text-end fw-bold">{{ "%.1f"|format(p.current_stock_kg) }} kg</td>
                                     <td class="text-center">
-                                        {% if p.current_stock_kg <= p.min_stock_kg %} <span
-                                            class="badge bg-danger rounded-pill px-3">Low Stock</span>
-                                            {% else %}
-                                            <span class="badge bg-success rounded-pill px-3">In Stock</span>
-                                            {% endif %}
+                                        {% if p.current_stock_kg <= p.min_stock_kg %}
+                                        <span class="badge bg-danger rounded-pill px-3">Low Stock</span>
+                                        {% else %}
+                                        <span class="badge bg-success rounded-pill px-3">In Stock</span>
+                                        {% endif %}
                                     </td>
-                                    <td class="text-end pe-4">
+                                    <td class="text-end pe-4 text-nowrap">
                                         <a href="{{ url_for('product_stock_ledger', id=p.id) }}" class="btn btn-sm btn-outline-info px-2 py-1 me-1" title="Stock Ledger">
                                             <i class="bi bi-journal-text"></i> Ledger
                                         </a>
-                                        <button class="btn btn-sm btn-outline-secondary px-2 py-1" data-bs-toggle="modal" data-bs-target="#editProductModal{{ p.id }}">
+                                        <button class="btn btn-sm btn-outline-secondary px-2 py-1 me-1" data-bs-toggle="modal" data-bs-target="#editProductModal{{ p.id }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <form method="post" action="{{ url_for('delete_product', id=p.id) }}"
@@ -57,8 +92,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="5" class="text-center py-5 text-muted">No chemical products defined
-                                        yet.</td>
+                                    <td colspan="6" class="text-center py-5 text-muted">No chemical products defined yet.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -66,13 +100,65 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Mobile Card View -->
+            <div class="d-block d-md-none">
+                {% for p in products %}
+                <div class="prod-mobile-card {% if p.current_stock_kg <= p.min_stock_kg %}low-stock{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div class="fw-bold text-dark fs-6">{{ p.name }}</div>
+                        {% if p.current_stock_kg <= p.min_stock_kg %}
+                        <span class="badge bg-danger rounded-pill px-2 py-1" style="font-size: 0.7rem;">Low Stock</span>
+                        {% else %}
+                        <span class="badge bg-success rounded-pill px-2 py-1" style="font-size: 0.7rem;">In Stock</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="prod-mobile-metrics">
+                        <div>
+                            <span class="metric-label">Current Stock</span>
+                            <span class="metric-val {% if p.current_stock_kg <= p.min_stock_kg %}text-danger{% else %}text-success{% endif %}">
+                                {{ "%.1f"|format(p.current_stock_kg) }} kg
+                            </span>
+                        </div>
+                        <div>
+                            <span class="metric-label">Valuation</span>
+                            <span class="metric-val">₹{{ "%.2f"|format(p.valuation_rate) }}/kg</span>
+                        </div>
+                        <div>
+                            <span class="metric-label">Min Alert</span>
+                            <span class="metric-val text-muted fw-semibold">{{ "%.1f"|format(p.min_stock_kg) }} kg</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('product_stock_ledger', id=p.id) }}" class="btn btn-sm btn-outline-primary flex-grow-1 fw-semibold">
+                            <i class="bi bi-journal-text me-1"></i> Stock Ledger
+                        </a>
+                        <button class="btn btn-sm btn-outline-secondary px-3" data-bs-toggle="modal" data-bs-target="#editProductModal{{ p.id }}" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <form method="post" action="{{ url_for('delete_product', id=p.id) }}"
+                            style="display:inline;" onsubmit="return confirm('Delete this product?');">
+                            <button class="btn btn-sm btn-outline-danger px-3" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% else %}
+                <div class="card border-0 shadow-sm rounded-3 text-center py-5 text-muted">
+                    No chemical products defined yet.
+                </div>
+                {% endfor %}
+            </div>
         </div>
 
-        <div class="col-md-3">
+        <div class="col-lg-3">
             <div class="card border-0 shadow-sm rounded-3 bg-light p-3">
-                <h6 class="fw-bold mb-3">Inventory Tip</h6>
+                <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-1 text-primary"></i>Inventory Tip</h6>
                 <p class="small text-muted mb-0">Products added here will be used to track batch stocks. When you
-                    purchase chemicals, stock increases. When you sell, it automatically decreases.</p>
+                    purchase chemicals, stock increases. When you sell or record wastage, it automatically decreases.</p>
             </div>
         </div>
     </div>
