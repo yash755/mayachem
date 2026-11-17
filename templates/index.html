@@ -262,57 +262,73 @@
   </div>
 
   <div class="card-body">
-    <div class="row text-center">
+    <div class="row text-center g-3">
 
-      <div class="col-md-2">
-        <small>Qty</small>
-        <h5>{{ current_data.qty }} kg</h5>
+      <div class="col-6 col-md-2">
+        <small class="text-muted">Qty</small>
+        <h5 class="mb-0">{{ current_data.qty }} kg</h5>
       </div>
 
-      <div class="col-md-2">
-        <small>Sales</small>
-        <h5>₹ {{ current_data.sp }}</h5>
+      <div class="col-6 col-md-2">
+        <small class="text-muted">Sales</small>
+        <h5 class="mb-0">₹ {{ current_data.sp }}</h5>
       </div>
 
-      <div class="col-md-2">
-        <small>Cost</small>
-        <h5>₹ {{ current_data.cp }}</h5>
+      <div class="col-6 col-md-2">
+        <small class="text-muted">Cost</small>
+        <h5 class="mb-0">₹ {{ current_data.cp }}</h5>
       </div>
 
-      <div class="col-md-2">
-        <small>Freight</small>
-        <h5>₹ {{ current_data.freight }}</h5>
+      <div class="col-6 col-md-2">
+        <small class="text-muted">Freight</small>
+        <h5 class="mb-0">₹ {{ current_data.freight }}</h5>
       </div>
 
-      <div class="col-md-2">
-        <small>Expense</small>
-        <h5 class="text-danger">
+      <div class="col-6 col-md-2">
+        <small class="text-muted">Profit Before Exp.</small>
+        <h5 class="mb-0 {% if current_data.gross_pl >= 0 %}text-primary{% else %}text-danger{% endif %}">
+          ₹ {{ current_data.gross_pl }}
+        </h5>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <small class="text-muted">Expense (Given)</small>
+        <h5 class="text-danger mb-0">
           ₹ {{ current_data.expense }}
         </h5>
       </div>
 
-      <div class="col-md-2">
-        <small>Salary Left</small>
-        <h5 class="text-danger">
+      <div class="col-6 col-md-2">
+        <small class="text-muted">Not Yet Given</small>
+        <h5 class="mb-0" style="color: #fd7e14;">
+          <a href="{{ url_for('expenses_list', month=current_data.ym, given='0') }}" class="text-decoration-none" style="color: #fd7e14;">
+            ₹ {{ current_data.not_yet_given }}
+          </a>
+        </h5>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <small class="text-muted">Salary Left</small>
+        <h5 class="text-danger mb-0">
           ₹ {{ total_salary_left }}
         </h5>
       </div>
 
-      <div class="col-md-2">
-        <small>EMI/Month (Taken)</small>
-        <h5 class="text-primary">
+      <div class="col-6 col-md-2">
+        <small class="text-muted">EMI/Month (Taken)</small>
+        <h5 class="text-primary mb-0">
           {{ monthly_loans_count }} (₹ {{ monthly_emi_amount }})
         </h5>
       </div>
 
-      <div class="col-md-2">
-        <small>
+      <div class="col-6 col-md-2">
+        <small class="text-muted">
           Net P/L 
           <i class="bi bi-info-circle-fill ms-1" style="font-size: 0.7rem; cursor: help;" 
              data-bs-toggle="tooltip"
-             data-bs-title="Sales - (Cost + Freight + Expense)"></i>
+             data-bs-title="Sales - (Cost + Freight + Given Expense). Excludes Not Yet Given Expenses."></i>
         </small>
-        <h5 class="{% if current_data.pl >=0 %}text-success{% else %}text-danger{% endif %}">
+        <h5 class="mb-0 {% if current_data.pl >=0 %}text-success{% else %}text-danger{% endif %}">
           ₹ {{ current_data.pl }}
         </h5>
       </div>
@@ -347,12 +363,13 @@
                data-bs-toggle="tooltip"
                data-bs-title="Sales - (Cost + Freight)"></i>
           </th>
-          <th>Expense</th>
+          <th>Expense (Given)</th>
+          <th>Not Yet Given</th>
           <th>
             Net Profit 
             <i class="bi bi-info-circle-fill ms-1" aria-hidden="true" style="cursor: help;"
                data-bs-toggle="tooltip"
-               data-bs-title="Sales - (Cost + Freight + Expense)"></i>
+               data-bs-title="Sales - (Cost + Freight + Given Expense)"></i>
           </th>
         </tr>
       </thead>
@@ -369,6 +386,7 @@
             ₹ {{ m.gross_pl }}
           </td>
           <td class="text-danger">₹ {{ m.expense }}</td>
+          <td style="color: #fd7e14;">₹ {{ m.not_yet_given }}</td>
 
           <td class="{% if m.pl >=0 %}text-success{% else %}text-danger{% endif %}">
             ₹ {{ m.pl }}

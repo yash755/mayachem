@@ -118,11 +118,12 @@
             <i class="bi bi-info-circle-fill ms-1" aria-hidden="true" style="cursor: help;" data-bs-toggle="tooltip"
               data-bs-title="Sales - (Cost + Freight)"></i>
           </th>
-          <th class="text-end">Expense</th>
+          <th class="text-end">Expense (Given)</th>
+          <th class="text-end">Not Yet Given</th>
           <th class="text-end">
             Net Profit
             <i class="bi bi-info-circle-fill ms-1" aria-hidden="true" style="cursor: help;" data-bs-toggle="tooltip"
-              data-bs-title="Sales - (Cost + Freight + Expense)"></i>
+              data-bs-title="Sales - (Cost + Freight + Given Expense)"></i>
           </th>
         </tr>
       </thead>
@@ -138,13 +139,14 @@
             ₹ {{ m.gross_pl }}
           </td>
           <td class="text-end text-danger">₹ {{ m.expense }}</td>
+          <td class="text-end" style="color: #fd7e14;">₹ {{ m.not_yet_given }}</td>
           <td class="text-end fw-bold {% if m.pl >=0 %}text-success{% else %}text-danger{% endif %}">
             ₹ {{ m.pl }}
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="8" class="text-center py-4 text-muted">No monthly performance data found.</td>
+          <td colspan="9" class="text-center py-4 text-muted">No monthly performance data found.</td>
         </tr>
         {% endfor %}
         {% if monthly %}
@@ -158,6 +160,7 @@
             ₹ {{ "%.2f"|format(totals.gross_pl) }}
           </td>
           <td class="text-end text-danger">₹ {{ "%.2f"|format(totals.expense) }}</td>
+          <td class="text-end" style="color: #fd7e14;">₹ {{ "%.2f"|format(totals.not_yet_given) }}</td>
           <td class="text-end {% if totals.pl >=0 %}text-success{% else %}text-danger{% endif %}">
             ₹ {{ "%.2f"|format(totals.pl) }}
           </td>

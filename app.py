@@ -927,11 +927,22 @@ def register_routes(app: Flask) -> None:
             """)
         ).mappings().all()
 
-        expense_monthly = dict(
+        given_expense_monthly = dict(
             db.session.query(
                 func.strftime('%Y-%m', Expense.date),
                 func.sum(Expense.amount)
             )
+            .filter(Expense.is_given == True)
+            .group_by(func.strftime('%Y-%m', Expense.date))
+            .all()
+        )
+
+        not_given_expense_monthly = dict(
+            db.session.query(
+                func.strftime('%Y-%m', Expense.date),
+                func.sum(Expense.amount)
+            )
+            .filter(Expense.is_given == False)
             .group_by(func.strftime('%Y-%m', Expense.date))
             .all()
         )
@@ -944,7 +955,8 @@ def register_routes(app: Flask) -> None:
             sp = float(m["sp"] or 0)
             cp = float(m["cp"] or 0)
             freight = float(m["freight"] or 0)
-            expense = float(expense_monthly.get(ym, 0) or 0)
+            expense = float(given_expense_monthly.get(ym, 0) or 0)
+            not_yet_given = float(not_given_expense_monthly.get(ym, 0) or 0)
 
             gross_pl = sp - (cp + freight)
             net_pl = gross_pl - expense
@@ -957,6 +969,7 @@ def register_routes(app: Flask) -> None:
                 "freight": freight,
                 "gross_pl": round(gross_pl, 2),
                 "expense": round(expense, 2),
+                "not_yet_given": round(not_yet_given, 2),
                 "pl": round(net_pl, 2)
             })
 
@@ -983,8 +996,9 @@ def register_routes(app: Flask) -> None:
                 "cp": 0,
                 "freight": 0,
                 "gross_pl": 0,
-                "expense": 0,
-                "pl": 0
+                "expense": round(float(given_expense_monthly.get(current_ym, 0) or 0), 2),
+                "not_yet_given": round(float(not_given_expense_monthly.get(current_ym, 0) or 0), 2),
+                "pl": -round(float(given_expense_monthly.get(current_ym, 0) or 0), 2)
             }
         )
 
@@ -996,6 +1010,7 @@ def register_routes(app: Flask) -> None:
             "freight": current["freight"],
             "gross_pl": current.get("gross_pl", 0),
             "expense": current["expense"],
+            "not_yet_given": current.get("not_yet_given", 0),
             "pl": current["pl"]
         }
 
@@ -3653,11 +3668,22 @@ def register_routes(app: Flask) -> None:
             """)
         ).mappings().all()
 
-        expense_monthly = dict(
+        given_expense_monthly = dict(
             db.session.query(
                 func.strftime('%Y-%m', Expense.date),
                 func.sum(Expense.amount)
             )
+            .filter(Expense.is_given == True)
+            .group_by(func.strftime('%Y-%m', Expense.date))
+            .all()
+        )
+
+        not_given_expense_monthly = dict(
+            db.session.query(
+                func.strftime('%Y-%m', Expense.date),
+                func.sum(Expense.amount)
+            )
+            .filter(Expense.is_given == False)
             .group_by(func.strftime('%Y-%m', Expense.date))
             .all()
         )
@@ -3669,7 +3695,8 @@ def register_routes(app: Flask) -> None:
             sp = float(m["sp"] or 0)
             cp = float(m["cp"] or 0)
             freight = float(m["freight"] or 0)
-            expense = float(expense_monthly.get(ym, 0) or 0)
+            expense = float(given_expense_monthly.get(ym, 0) or 0)
+            not_yet_given = float(not_given_expense_monthly.get(ym, 0) or 0)
 
             gross_pl = sp - (cp + freight)
             net_pl = gross_pl - expense
@@ -3682,6 +3709,7 @@ def register_routes(app: Flask) -> None:
                 "freight": freight,
                 "gross_pl": round(gross_pl, 2),
                 "expense": round(expense, 2),
+                "not_yet_given": round(not_yet_given, 2),
                 "pl": round(net_pl, 2)
             })
 
@@ -3691,6 +3719,7 @@ def register_routes(app: Flask) -> None:
         total_freight = sum(m["freight"] for m in monthly)
         total_gross_pl = sum(m["gross_pl"] for m in monthly)
         total_expense = sum(m["expense"] for m in monthly)
+        total_not_yet_given = sum(m["not_yet_given"] for m in monthly)
         total_pl = sum(m["pl"] for m in monthly)
 
         totals = {
@@ -3700,6 +3729,7 @@ def register_routes(app: Flask) -> None:
             "freight": round(total_freight, 2),
             "gross_pl": round(total_gross_pl, 2),
             "expense": round(total_expense, 2),
+            "not_yet_given": round(total_not_yet_given, 2),
             "pl": round(total_pl, 2)
         }
 
