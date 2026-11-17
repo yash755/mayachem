@@ -341,6 +341,12 @@
           <th>Sales</th>
           <th>Cost</th>
           <th>Freight</th>
+          <th>
+            Profit Before Exp.
+            <i class="bi bi-info-circle-fill ms-1" aria-hidden="true" style="cursor: help;"
+               data-bs-toggle="tooltip"
+               data-bs-title="Sales - (Cost + Freight)"></i>
+          </th>
           <th>Expense</th>
           <th>
             Net Profit 
@@ -359,6 +365,9 @@
           <td>₹ {{ m.sp }}</td>
           <td>₹ {{ m.cp }}</td>
           <td>₹ {{ m.freight }}</td>
+          <td class="fw-semibold {% if m.gross_pl >= 0 %}text-primary{% else %}text-danger{% endif %}">
+            ₹ {{ m.gross_pl }}
+          </td>
           <td class="text-danger">₹ {{ m.expense }}</td>
 
           <td class="{% if m.pl >=0 %}text-success{% else %}text-danger{% endif %}">

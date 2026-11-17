@@ -955,6 +955,7 @@ def register_routes(app: Flask) -> None:
                 "sp": sp,
                 "cp": cp,
                 "freight": freight,
+                "gross_pl": round(gross_pl, 2),
                 "expense": round(expense, 2),
                 "pl": round(net_pl, 2)
             })
@@ -981,6 +982,7 @@ def register_routes(app: Flask) -> None:
                 "sp": 0,
                 "cp": 0,
                 "freight": 0,
+                "gross_pl": 0,
                 "expense": 0,
                 "pl": 0
             }
@@ -992,6 +994,7 @@ def register_routes(app: Flask) -> None:
             "sp": current["sp"],
             "cp": current["cp"],
             "freight": current["freight"],
+            "gross_pl": current.get("gross_pl", 0),
             "expense": current["expense"],
             "pl": current["pl"]
         }
@@ -3677,6 +3680,7 @@ def register_routes(app: Flask) -> None:
                 "sp": sp,
                 "cp": cp,
                 "freight": freight,
+                "gross_pl": round(gross_pl, 2),
                 "expense": round(expense, 2),
                 "pl": round(net_pl, 2)
             })
@@ -3685,6 +3689,7 @@ def register_routes(app: Flask) -> None:
         total_sp = sum(m["sp"] for m in monthly)
         total_cp = sum(m["cp"] for m in monthly)
         total_freight = sum(m["freight"] for m in monthly)
+        total_gross_pl = sum(m["gross_pl"] for m in monthly)
         total_expense = sum(m["expense"] for m in monthly)
         total_pl = sum(m["pl"] for m in monthly)
 
@@ -3693,6 +3698,7 @@ def register_routes(app: Flask) -> None:
             "sp": round(total_sp, 2),
             "cp": round(total_cp, 2),
             "freight": round(total_freight, 2),
+            "gross_pl": round(total_gross_pl, 2),
             "expense": round(total_expense, 2),
             "pl": round(total_pl, 2)
         }

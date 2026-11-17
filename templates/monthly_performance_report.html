@@ -113,6 +113,11 @@
           <th class="text-end">Sales</th>
           <th class="text-end">Cost</th>
           <th class="text-end">Freight</th>
+          <th class="text-end">
+            Profit Before Exp.
+            <i class="bi bi-info-circle-fill ms-1" aria-hidden="true" style="cursor: help;" data-bs-toggle="tooltip"
+              data-bs-title="Sales - (Cost + Freight)"></i>
+          </th>
           <th class="text-end">Expense</th>
           <th class="text-end">
             Net Profit
@@ -129,6 +134,9 @@
           <td class="text-end">₹ {{ m.sp }}</td>
           <td class="text-end">₹ {{ m.cp }}</td>
           <td class="text-end">₹ {{ m.freight }}</td>
+          <td class="text-end fw-semibold {% if m.gross_pl >= 0 %}text-primary{% else %}text-danger{% endif %}">
+            ₹ {{ m.gross_pl }}
+          </td>
           <td class="text-end text-danger">₹ {{ m.expense }}</td>
           <td class="text-end fw-bold {% if m.pl >=0 %}text-success{% else %}text-danger{% endif %}">
             ₹ {{ m.pl }}
@@ -136,7 +144,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="7" class="text-center py-4 text-muted">No monthly performance data found.</td>
+          <td colspan="8" class="text-center py-4 text-muted">No monthly performance data found.</td>
         </tr>
         {% endfor %}
         {% if monthly %}
@@ -146,6 +154,9 @@
           <td class="text-end">₹ {{ "%.2f"|format(totals.sp) }}</td>
           <td class="text-end">₹ {{ "%.2f"|format(totals.cp) }}</td>
           <td class="text-end">₹ {{ "%.2f"|format(totals.freight) }}</td>
+          <td class="text-end {% if totals.gross_pl >= 0 %}text-primary{% else %}text-danger{% endif %}">
+            ₹ {{ "%.2f"|format(totals.gross_pl) }}
+          </td>
           <td class="text-end text-danger">₹ {{ "%.2f"|format(totals.expense) }}</td>
           <td class="text-end {% if totals.pl >=0 %}text-success{% else %}text-danger{% endif %}">
             ₹ {{ "%.2f"|format(totals.pl) }}
