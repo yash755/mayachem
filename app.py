@@ -998,9 +998,13 @@ def register_routes(app: Flask) -> None:
                 "gross_pl": 0,
                 "expense": round(float(given_expense_monthly.get(current_ym, 0) or 0), 2),
                 "not_yet_given": round(float(not_given_expense_monthly.get(current_ym, 0) or 0), 2),
-                "pl": -round(float(given_expense_monthly.get(current_ym, 0) or 0), 2)
+                "pl": 0
             }
         )
+
+        current_gross_pl = current.get("gross_pl", 0)
+        current_given_exp = current["expense"]
+        current_not_given_exp = current.get("not_yet_given", 0)
 
         current_data = {
             "ym": current_ym,
@@ -1008,10 +1012,10 @@ def register_routes(app: Flask) -> None:
             "sp": current["sp"],
             "cp": current["cp"],
             "freight": current["freight"],
-            "gross_pl": current.get("gross_pl", 0),
-            "expense": current["expense"],
-            "not_yet_given": current.get("not_yet_given", 0),
-            "pl": current["pl"]
+            "gross_pl": current_gross_pl,
+            "expense": current_given_exp,
+            "not_yet_given": current_not_given_exp,
+            "pl": round(current_gross_pl - (current_given_exp + current_not_given_exp), 2)
         }
 
         # --------------------------------------------------
